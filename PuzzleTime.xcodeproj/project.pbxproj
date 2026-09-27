@@ -1,0 +1,754 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		5B608B5E2EC8EE7300223344 /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B608B5D2EC8EE7300223344 /* NotificationManager.swift */; };
+		5B608B602EC8F0D400223344 /* NotificationPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B608B5F2EC8F0D400223344 /* NotificationPreferences.swift */; };
+		5B608B622EC8F11600223344 /* NotificationsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B608B612EC8F11600223344 /* NotificationsSettingsView.swift */; };
+		5B7531392EB44E90005009DE /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 5B7531382EB44E90005009DE /* GoogleService-Info.plist */; };
+		5B75313B2EB451A3005009DE /* FirebaseAI in Frameworks */ = {isa = PBXBuildFile; productRef = 5B75313A2EB451A3005009DE /* FirebaseAI */; };
+		5B75313D2EB451A3005009DE /* FirebaseAILogic in Frameworks */ = {isa = PBXBuildFile; productRef = 5B75313C2EB451A3005009DE /* FirebaseAILogic */; };
+		5B75313F2EB451A3005009DE /* FirebaseAppCheck in Frameworks */ = {isa = PBXBuildFile; productRef = 5B75313E2EB451A3005009DE /* FirebaseAppCheck */; };
+		5B7531412EB451A3005009DE /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 5B7531402EB451A3005009DE /* FirebaseAuth */; };
+		5B7531432EB451A3005009DE /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 5B7531422EB451A3005009DE /* FirebaseCore */; };
+		5B7531452EB451A3005009DE /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 5B7531442EB451A3005009DE /* FirebaseFirestore */; };
+		5B7531472EB451A3005009DE /* FirebaseStorage in Frameworks */ = {isa = PBXBuildFile; productRef = 5B7531462EB451A3005009DE /* FirebaseStorage */; };
+		5B75314C2EB45438005009DE /* ConfettiSwiftUI in Frameworks */ = {isa = PBXBuildFile; productRef = 5B75314B2EB45438005009DE /* ConfettiSwiftUI */; };
+		5BAD84B72EBD9F750082F4DC /* GoogleMobileAds in Frameworks */ = {isa = PBXBuildFile; productRef = 5BAD84B62EBD9F750082F4DC /* GoogleMobileAds */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		5B7531152EB440C3005009DE /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 5B7530FD2EB440C0005009DE /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 5B7531042EB440C0005009DE;
+			remoteInfo = PuzzleTime;
+		};
+		5B75311F2EB440C3005009DE /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 5B7530FD2EB440C0005009DE /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 5B7531042EB440C0005009DE;
+			remoteInfo = PuzzleTime;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		5B608B5D2EC8EE7300223344 /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
+		5B608B5F2EC8F0D400223344 /* NotificationPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationPreferences.swift; sourceTree = "<group>"; };
+		5B608B612EC8F11600223344 /* NotificationsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsSettingsView.swift; sourceTree = "<group>"; };
+		5B7531052EB440C0005009DE /* PuzzleTime.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PuzzleTime.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		5B7531142EB440C3005009DE /* PuzzleTimeTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PuzzleTimeTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		5B75311E2EB440C3005009DE /* PuzzleTimeUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PuzzleTimeUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		5B7531382EB44E90005009DE /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		5BAD84B92EBDA02A0082F4DC /* Exceptions for "PuzzleTime" folder in "PuzzleTime" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 5B7531042EB440C0005009DE /* PuzzleTime */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		5B7531072EB440C0005009DE /* PuzzleTime */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				5BAD84B92EBDA02A0082F4DC /* Exceptions for "PuzzleTime" folder in "PuzzleTime" target */,
+			);
+			path = PuzzleTime;
+			sourceTree = "<group>";
+		};
+		5B7531172EB440C3005009DE /* PuzzleTimeTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = PuzzleTimeTests;
+			sourceTree = "<group>";
+		};
+		5B7531212EB440C3005009DE /* PuzzleTimeUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = PuzzleTimeUITests;
+			sourceTree = "<group>";
+		};
+		5BAD84B22EBD91310082F4DC /* Ad Stuff */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "Ad Stuff";
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		5B7531022EB440C0005009DE /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5B75313D2EB451A3005009DE /* FirebaseAILogic in Frameworks */,
+				5B7531432EB451A3005009DE /* FirebaseCore in Frameworks */,
+				5B75313F2EB451A3005009DE /* FirebaseAppCheck in Frameworks */,
+				5BAD84B72EBD9F750082F4DC /* GoogleMobileAds in Frameworks */,
+				5B75313B2EB451A3005009DE /* FirebaseAI in Frameworks */,
+				5B7531472EB451A3005009DE /* FirebaseStorage in Frameworks */,
+				5B7531412EB451A3005009DE /* FirebaseAuth in Frameworks */,
+				5B75314C2EB45438005009DE /* ConfettiSwiftUI in Frameworks */,
+				5B7531452EB451A3005009DE /* FirebaseFirestore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5B7531112EB440C3005009DE /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5B75311B2EB440C3005009DE /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		5B608B5C2EC8EE5D00223344 /* Notifications */ = {
+			isa = PBXGroup;
+			children = (
+				5B608B5D2EC8EE7300223344 /* NotificationManager.swift */,
+				5B608B5F2EC8F0D400223344 /* NotificationPreferences.swift */,
+				5B608B612EC8F11600223344 /* NotificationsSettingsView.swift */,
+			);
+			path = Notifications;
+			sourceTree = "<group>";
+		};
+		5B7530FC2EB440C0005009DE = {
+			isa = PBXGroup;
+			children = (
+				5B608B5C2EC8EE5D00223344 /* Notifications */,
+				5BAD84B22EBD91310082F4DC /* Ad Stuff */,
+				5B7531072EB440C0005009DE /* PuzzleTime */,
+				5B7531172EB440C3005009DE /* PuzzleTimeTests */,
+				5B7531212EB440C3005009DE /* PuzzleTimeUITests */,
+				5B7531062EB440C0005009DE /* Products */,
+				5B7531382EB44E90005009DE /* GoogleService-Info.plist */,
+			);
+			sourceTree = "<group>";
+		};
+		5B7531062EB440C0005009DE /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				5B7531052EB440C0005009DE /* PuzzleTime.app */,
+				5B7531142EB440C3005009DE /* PuzzleTimeTests.xctest */,
+				5B75311E2EB440C3005009DE /* PuzzleTimeUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		5B7531042EB440C0005009DE /* PuzzleTime */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5B7531282EB440C3005009DE /* Build configuration list for PBXNativeTarget "PuzzleTime" */;
+			buildPhases = (
+				5B7531012EB440C0005009DE /* Sources */,
+				5B7531022EB440C0005009DE /* Frameworks */,
+				5B7531032EB440C0005009DE /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				5B7531072EB440C0005009DE /* PuzzleTime */,
+				5BAD84B22EBD91310082F4DC /* Ad Stuff */,
+			);
+			name = PuzzleTime;
+			packageProductDependencies = (
+				5B75313A2EB451A3005009DE /* FirebaseAI */,
+				5B75313C2EB451A3005009DE /* FirebaseAILogic */,
+				5B75313E2EB451A3005009DE /* FirebaseAppCheck */,
+				5B7531402EB451A3005009DE /* FirebaseAuth */,
+				5B7531422EB451A3005009DE /* FirebaseCore */,
+				5B7531442EB451A3005009DE /* FirebaseFirestore */,
+				5B7531462EB451A3005009DE /* FirebaseStorage */,
+				5B75314B2EB45438005009DE /* ConfettiSwiftUI */,
+				5BAD84B62EBD9F750082F4DC /* GoogleMobileAds */,
+			);
+			productName = PuzzleTime;
+			productReference = 5B7531052EB440C0005009DE /* PuzzleTime.app */;
+			productType = "com.apple.product-type.application";
+		};
+		5B7531132EB440C3005009DE /* PuzzleTimeTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5B75312B2EB440C3005009DE /* Build configuration list for PBXNativeTarget "PuzzleTimeTests" */;
+			buildPhases = (
+				5B7531102EB440C3005009DE /* Sources */,
+				5B7531112EB440C3005009DE /* Frameworks */,
+				5B7531122EB440C3005009DE /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				5B7531162EB440C3005009DE /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				5B7531172EB440C3005009DE /* PuzzleTimeTests */,
+			);
+			name = PuzzleTimeTests;
+			packageProductDependencies = (
+			);
+			productName = PuzzleTimeTests;
+			productReference = 5B7531142EB440C3005009DE /* PuzzleTimeTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		5B75311D2EB440C3005009DE /* PuzzleTimeUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5B75312E2EB440C3005009DE /* Build configuration list for PBXNativeTarget "PuzzleTimeUITests" */;
+			buildPhases = (
+				5B75311A2EB440C3005009DE /* Sources */,
+				5B75311B2EB440C3005009DE /* Frameworks */,
+				5B75311C2EB440C3005009DE /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				5B7531202EB440C3005009DE /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				5B7531212EB440C3005009DE /* PuzzleTimeUITests */,
+			);
+			name = PuzzleTimeUITests;
+			packageProductDependencies = (
+			);
+			productName = PuzzleTimeUITests;
+			productReference = 5B75311E2EB440C3005009DE /* PuzzleTimeUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		5B7530FD2EB440C0005009DE /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2600;
+				LastUpgradeCheck = 2600;
+				TargetAttributes = {
+					5B7531042EB440C0005009DE = {
+						CreatedOnToolsVersion = 26.0.1;
+					};
+					5B7531132EB440C3005009DE = {
+						CreatedOnToolsVersion = 26.0.1;
+						TestTargetID = 5B7531042EB440C0005009DE;
+					};
+					5B75311D2EB440C3005009DE = {
+						CreatedOnToolsVersion = 26.0.1;
+						TestTargetID = 5B7531042EB440C0005009DE;
+					};
+				};
+			};
+			buildConfigurationList = 5B7531002EB440C0005009DE /* Build configuration list for PBXProject "PuzzleTime" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 5B7530FC2EB440C0005009DE;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				5B7531372EB44E6A005009DE /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
+				5B75314A2EB45438005009DE /* XCRemoteSwiftPackageReference "ConfettiSwiftUI" */,
+				5BAD84B52EBD92D00082F4DC /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 5B7531062EB440C0005009DE /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				5B7531042EB440C0005009DE /* PuzzleTime */,
+				5B7531132EB440C3005009DE /* PuzzleTimeTests */,
+				5B75311D2EB440C3005009DE /* PuzzleTimeUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		5B7531032EB440C0005009DE /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5B7531392EB44E90005009DE /* GoogleService-Info.plist in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5B7531122EB440C3005009DE /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5B75311C2EB440C3005009DE /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		5B7531012EB440C0005009DE /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5B608B5E2EC8EE7300223344 /* NotificationManager.swift in Sources */,
+				5B608B602EC8F0D400223344 /* NotificationPreferences.swift in Sources */,
+				5B608B622EC8F11600223344 /* NotificationsSettingsView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5B7531102EB440C3005009DE /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5B75311A2EB440C3005009DE /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		5B7531162EB440C3005009DE /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 5B7531042EB440C0005009DE /* PuzzleTime */;
+			targetProxy = 5B7531152EB440C3005009DE /* PBXContainerItemProxy */;
+		};
+		5B7531202EB440C3005009DE /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 5B7531042EB440C0005009DE /* PuzzleTime */;
+			targetProxy = 5B75311F2EB440C3005009DE /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		5B7531262EB440C3005009DE /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = YY4QZ9BB2G;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		5B7531272EB440C3005009DE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = YY4QZ9BB2G;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		5B7531292EB440C3005009DE /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = PuzzleTime/PuzzleTime.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = YY4QZ9BB2G;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = PuzzleTime/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Rebus Rush";
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.puzzle-games";
+				INFOPLIST_KEY_NSUserTrackingUsageDescription = "We use this data to deliver relevant ads.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIRequiresFullScreen = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = UIInterfaceOrientationPortrait;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.1;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.FooWibble.puzzle-time";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		5B75312A2EB440C3005009DE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = PuzzleTime/PuzzleTime.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = YY4QZ9BB2G;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = PuzzleTime/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Rebus Rush";
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.puzzle-games";
+				INFOPLIST_KEY_NSUserTrackingUsageDescription = "We use this data to deliver relevant ads.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIRequiresFullScreen = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = UIInterfaceOrientationPortrait;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.1;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.FooWibble.puzzle-time";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		5B75312C2EB440C3005009DE /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = YY4QZ9BB2G;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.FooWibble.PuzzleTimeTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PuzzleTime.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/PuzzleTime";
+			};
+			name = Debug;
+		};
+		5B75312D2EB440C3005009DE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = YY4QZ9BB2G;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.FooWibble.PuzzleTimeTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PuzzleTime.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/PuzzleTime";
+			};
+			name = Release;
+		};
+		5B75312F2EB440C3005009DE /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = YY4QZ9BB2G;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.FooWibble.PuzzleTimeUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = PuzzleTime;
+			};
+			name = Debug;
+		};
+		5B7531302EB440C3005009DE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = YY4QZ9BB2G;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.FooWibble.PuzzleTimeUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = PuzzleTime;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		5B7531002EB440C0005009DE /* Build configuration list for PBXProject "PuzzleTime" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5B7531262EB440C3005009DE /* Debug */,
+				5B7531272EB440C3005009DE /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		5B7531282EB440C3005009DE /* Build configuration list for PBXNativeTarget "PuzzleTime" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5B7531292EB440C3005009DE /* Debug */,
+				5B75312A2EB440C3005009DE /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		5B75312B2EB440C3005009DE /* Build configuration list for PBXNativeTarget "PuzzleTimeTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5B75312C2EB440C3005009DE /* Debug */,
+				5B75312D2EB440C3005009DE /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		5B75312E2EB440C3005009DE /* Build configuration list for PBXNativeTarget "PuzzleTimeUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5B75312F2EB440C3005009DE /* Debug */,
+				5B7531302EB440C3005009DE /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		5B7531372EB44E6A005009DE /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/firebase/firebase-ios-sdk";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 12.5.0;
+			};
+		};
+		5B75314A2EB45438005009DE /* XCRemoteSwiftPackageReference "ConfettiSwiftUI" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/simibac/ConfettiSwiftUI";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.0.3;
+			};
+		};
+		5BAD84B52EBD92D00082F4DC /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/googleads/swift-package-manager-google-mobile-ads";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 12.13.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		5B75313A2EB451A3005009DE /* FirebaseAI */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = FirebaseAI;
+		};
+		5B75313C2EB451A3005009DE /* FirebaseAILogic */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = FirebaseAILogic;
+		};
+		5B75313E2EB451A3005009DE /* FirebaseAppCheck */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = FirebaseAppCheck;
+		};
+		5B7531402EB451A3005009DE /* FirebaseAuth */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = FirebaseAuth;
+		};
+		5B7531422EB451A3005009DE /* FirebaseCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = FirebaseCore;
+		};
+		5B7531442EB451A3005009DE /* FirebaseFirestore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = FirebaseFirestore;
+		};
+		5B7531462EB451A3005009DE /* FirebaseStorage */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = FirebaseStorage;
+		};
+		5B75314B2EB45438005009DE /* ConfettiSwiftUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 5B75314A2EB45438005009DE /* XCRemoteSwiftPackageReference "ConfettiSwiftUI" */;
+			productName = ConfettiSwiftUI;
+		};
+		5BAD84B62EBD9F750082F4DC /* GoogleMobileAds */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 5BAD84B52EBD92D00082F4DC /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */;
+			productName = GoogleMobileAds;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 5B7530FD2EB440C0005009DE /* Project object */;
+}
