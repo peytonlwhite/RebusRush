@@ -9,16 +9,29 @@ const reviewSchema = {type: 'object', required: ['valid', 'hintsAccurate', 'expl
   familyFriendly: {type: 'boolean'}, distinctFromLibrary: {type: 'boolean'}, reason: {type: 'string'},
 }};
 
-export function createAI({project, model, reserveCall, client = new GoogleGenAI({vertexai: true, project, location: 'global', httpOptions: {timeout: 90000}})}) {
+export function createAI({project, model, reserveCall,
+  wait = ms => new Promise(resolve => setTimeout(resolve, ms)),
+  client = new GoogleGenAI({vertexai: true, project, location: 'global', httpOptions: {timeout: 90000, retryOptions: {attempts: 1}}}),
+}) {
   async function json(prompt, schema, png, temperature = 0.3) {
-    // Count before sending, including failed requests; retries cannot reset the weekly budget.
-    await reserveCall();
     const parts = [{text: prompt}];
     if (png) parts.push({inlineData: {mimeType: 'image/png', data: png.toString('base64')}});
-    const response = await client.models.generateContent({model, contents: [{role: 'user', parts}], config: {
-      temperature, maxOutputTokens: png ? 4000 : 16000, thinkingConfig: {thinkingLevel: 'LOW'},
-      responseMimeType: 'application/json', responseJsonSchema: schema,
-    }});
+    let response;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      // Count every network attempt, including retries, before sending it.
+      await reserveCall();
+      try {
+        response = await client.models.generateContent({model, contents: [{role: 'user', parts}], config: {
+          temperature, maxOutputTokens: png ? 4000 : 16000, thinkingConfig: {thinkingLevel: 'LOW'},
+          responseMimeType: 'application/json', responseJsonSchema: schema,
+        }});
+        break;
+      } catch (error) {
+        const status = Number(error.status ?? error.code);
+        if (![429, 500, 502, 503, 504].includes(status) || attempt === 2) throw error;
+        await wait(15000 * 2 ** attempt + Math.floor(Math.random() * 1000));
+      }
+    }
     if (response.candidates?.[0]?.finishReason === 'MAX_TOKENS') throw new Error('Model output reached its token limit; no partial puzzle accepted');
     if (!response.text) throw new Error('Model returned no JSON');
     return JSON.parse(response.text);
