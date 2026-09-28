@@ -7,3 +7,11 @@
 *.ipa
 DerivedData/
 build/
+
+# Puzzle automation dependencies, previews, and local credentials
+node_modules/
+.firebase/
+firebase-debug*.log
+functions/.env*
+functions/output/
+.local-firebase/

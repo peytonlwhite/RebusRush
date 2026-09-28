@@ -1,0 +1,9 @@
+{
+  "functions": [{
+    "source": "functions",
+    "codebase": "weekly-puzzles",
+    "runtime": "nodejs22",
+    "ignore": ["node_modules", ".git", "output", "test", "*.log", ".env*"],
+    "predeploy": ["npm --prefix \"$RESOURCE_DIR\" test"]
+  }]
+}
