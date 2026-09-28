@@ -44,7 +44,9 @@ with (temp / 'ExportOptions.plist').open('wb') as stream:
         'signingCertificate': 'Apple Distribution',
         'provisioningProfiles': {bundle: uuid},
         'manageAppVersionAndBuildNumber': False,
-        'testFlightInternalTestingOnly': True,
+        # Allow this upload to be selected for App Review as well as TestFlight.
+        # Uploading alone does not submit or release the app.
+        'testFlightInternalTestingOnly': False,
         'uploadSymbols': True,
     }, stream)
 PY

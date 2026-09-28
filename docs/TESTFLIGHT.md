@@ -1,9 +1,10 @@
 # TestFlight from Windows
 
 GitHub Actions supplies the Mac and Xcode. The shared `PuzzleTime` scheme supports
-both the manual **iOS build check** and **Upload to TestFlight** workflows.
-The build check compiles the release and unit tests; it does not execute the app
-or tests, or intentionally connect to Firebase.
+both the manual **iOS build check** and **Upload to App Store Connect** workflows.
+The build check compiles the iPhone release and simulator targets, then runs the
+gameplay unit tests in the simulator. Test startup skips gameplay sign-in, ad
+preloading, notifications, and remote model fetching.
 
 ## One-time signing setup
 
@@ -29,14 +30,21 @@ and profile. Never revoke an existing identity to make room without reviewing it
 ## Build and upload
 
 1. Run **iOS build check** for the current `main` commit and resolve compiler errors.
-2. Run **Upload to TestFlight** on `main`, choosing a version newer than the live app
-   (default `1.1.1`) and a unique build number (default `2`). Reusing a processed
+2. Run **Upload to App Store Connect** (`testflight.yml`) on `main`, choosing a version newer than the live app
+   (default `1.1.1`) and a unique build number. Reusing a processed
    version/build pair will fail; increment the build for the next upload.
 3. The workflow validates the profile, installs it in a temporary runner keychain,
-   archives Release, and uploads with **TestFlight internal testing only** enabled.
-   It does not submit an App Store release or distribute to external testers.
+   archives Release, and uploads with **TestFlight internal testing only** disabled.
+   The build can be used for TestFlight and selected for an App Store version.
+   Uploading does not submit an App Store release or distribute to external testers.
 4. Wait for Apple processing, then add the build to the existing `FooWibble` internal
    group and verify your Apple account is a tester. Install using TestFlight.
+
+To prepare a store release, open **Distribution → the draft version → Add Build**,
+select the processed build, and save. App Review submission and release are separate
+steps. A TestFlight **Testing** status does not prevent build selection. Builds 2
+and 3 of version 1.1.1 were uploaded as internal-only and cannot be used for an App
+Store release; upload a new build number with the corrected workflow.
 
 This app currently uses the production Firebase project. Installing a beta does
 not isolate its data. Use a test player and avoid resetting important player data.

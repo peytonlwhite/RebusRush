@@ -1,4 +1,4 @@
-name: Upload to TestFlight
+name: Upload to App Store Connect
 
 on:
   workflow_dispatch:
@@ -10,7 +10,6 @@ on:
       build_number:
         description: Unique build number for this version
         required: true
-        default: '2'
 
 permissions:
   contents: read
@@ -51,7 +50,7 @@ jobs:
             -archivePath "$RUNNER_TEMP/RebusRush.xcarchive" \
             -onlyUsePackageVersionsFromResolvedFile \
             MARKETING_VERSION="$APP_VERSION" CURRENT_PROJECT_VERSION="$APP_BUILD"
-      - name: Upload internal TestFlight build
+      - name: Upload App Store and TestFlight build
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
