@@ -40,6 +40,7 @@ function choose(p) {
     text.textContent = `${report.answer ? `Player answer: ${report.answer}. ` : ''}${report.details || 'No additional details.'}`;
     button.textContent = report.status === 'open' ? 'Mark resolved' : 'Reopen report';
     button.onclick = async () => {
+      if (saving || (dirty && !confirm('Discard unsaved puzzle changes before updating this report?'))) return;
       button.disabled = true;
       try { await api('/api/report', {id: report.id, status: report.status === 'open' ? 'resolved' : 'open'}); await load(); }
       catch (error) { tell(error.message); button.disabled = false; }

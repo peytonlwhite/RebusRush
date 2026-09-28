@@ -31,6 +31,7 @@ class CCAppCheckProviderFactory: NSObject, AppCheckProviderFactory {  // NEW: Cu
 class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+        if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil { return true }
         // FirebaseApp.configure() moved to init() for App Check setup
         
         // Request notification permissions
@@ -154,6 +155,7 @@ struct PuzzleTimeApp: App {
                 }
             }
             .task {
+                guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else { return }
                 // Check notification authorization and reschedule if needed
                 do {
                     let settings = try await UNUserNotificationCenter.current().notificationSettings()
@@ -165,11 +167,15 @@ struct PuzzleTimeApp: App {
                 }
             }
             .task {
-                await AIConfiguration.refresh()
+                guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else { return }
                 // Ensure login
                 if !userVM.isLoggedIn {
                     await signIn()
                 }
+            }
+            .task {
+                guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else { return }
+                await AIConfiguration.refresh()
             }
         }
     }

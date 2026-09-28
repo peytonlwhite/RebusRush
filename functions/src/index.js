@@ -16,7 +16,7 @@ const model = defineString('PUZZLE_MODEL', {default: 'gemini-3.5-flash', descrip
 export const deletePlayerAccount = onCall({region: 'us-central1', enforceAppCheck: true,
   timeoutSeconds: 300, memory: '256MiB', maxInstances: 3}, async request => {
   if (!request.auth) throw new HttpsError('unauthenticated', 'Sign in before deleting your account.');
-  if (Date.now() / 1000 - request.auth.token.auth_time > 300) {
+  if (!Number.isFinite(request.auth.token.auth_time) || Date.now() / 1000 - request.auth.token.auth_time > 300) {
     throw new HttpsError('unauthenticated', 'Confirm your identity with Apple again.');
   }
   const uid = request.auth.uid;
@@ -25,9 +25,11 @@ export const deletePlayerAccount = onCall({region: 'us-central1', enforceAppChec
   await db.recursiveDelete(db.collection('users').doc(uid));
   for (const name of ['puzzleReports', 'contactUs']) {
     const records = await db.collection(name).where('userId', '==', uid).get();
-    const writer = db.bulkWriter();
-    for (const record of records.docs) writer.delete(record.ref);
-    await writer.close();
+    for (let offset = 0; offset < records.docs.length; offset += 400) {
+      const batch = db.batch();
+      for (const record of records.docs.slice(offset, offset + 400)) batch.delete(record.ref);
+      await batch.commit();
+    }
   }
   await getAuth(app).deleteUser(uid);
   return {deleted: true};

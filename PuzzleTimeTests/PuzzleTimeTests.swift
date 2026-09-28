@@ -7,6 +7,7 @@
 
 import Foundation
 import Testing
+import FirebaseFirestore
 @testable import PuzzleTime
 
 @MainActor
@@ -32,8 +33,9 @@ struct PuzzleTimeTests {
     }
 
     @Test func oldPuzzlesDoNotGetInventedMetadata() throws {
-        let data = Data(#"{"photoUrl":"https://example.com/p.png","answer":"test","hints":[],"explanation":"test"}"#.utf8)
-        let riddle = try JSONDecoder().decode(Riddle.self, from: data)
+        let riddle = try Firestore.Decoder().decode(Riddle.self, from: [
+            "photoUrl": "https://example.com/p.png", "answer": "test", "hints": [String](), "explanation": "test"
+        ])
         #expect(riddle.difficultyLabel == nil)
         #expect(!riddle.isNew())
         #expect(riddle.retired != true)

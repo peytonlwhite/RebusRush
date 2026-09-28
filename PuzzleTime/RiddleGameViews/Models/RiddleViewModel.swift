@@ -126,6 +126,15 @@ final class RiddleViewModel: ObservableObject {
                 dailyRiddle = try await db.collection("riddles").document(riddleId)
                     .getDocument(as: Riddle.self)
             }
+            if dailyRiddle?.retired == true {
+                // Keep a player's existing daily progress attached to its puzzle.
+                if let uid = Auth.auth().currentUser?.uid {
+                    let progress = try await db.collection("users").document(uid)
+                        .collection("dailychallengeprogress").document(dailyChallengeDate.utcDayString).getDocument()
+                    if progress.exists { return }
+                }
+                await loadFallbackDaily()
+            }
         } catch {
             print("Daily riddle error: \(error)")
             await loadFallbackDaily()
@@ -208,9 +217,15 @@ final class RiddleViewModel: ObservableObject {
                 }
             }
             
-            if fetched.count == 3 {
-                timerRiddles = fetched
+            var active = fetched.filter { $0.retired != true }
+            if active.count < 3 {
+                let library = await fetchAllRiddles()
+                for replacement in library where !active.contains(where: { $0.uiId == replacement.uiId }) {
+                    guard active.count < 3 else { break }
+                    active.append(replacement)
+                }
             }
+            if active.count == 3 { timerRiddles = active }
         } catch {
             print("Error loading timer daily riddles: \(error)")
         }
@@ -295,8 +310,13 @@ final class RiddleViewModel: ObservableObject {
                let savedIds = data["riddleIds"] as? [String],
                savedIds.count == dailyRiddleCount {
                 
-                let savedRiddles = savedIds.compactMap { id in
-                    allRiddles.first { $0.uiId == id }
+                var savedRiddles: [Riddle] = []
+                for id in savedIds {
+                    if let active = allRiddles.first(where: { $0.uiId == id }) {
+                        savedRiddles.append(active)
+                    } else if let saved = try? await db.collection("riddles").document(id).getDocument(as: Riddle.self) {
+                        savedRiddles.append(saved)
+                    }
                 }
                 
                 if savedRiddles.count == dailyRiddleCount {

@@ -27,6 +27,15 @@ final class UserViewModel: ObservableObject {
     func adoptAccount(_ user: User) async throws {
         if let signInTask { try await signInTask.value }
         try await ensureUserDocumentExists(for: user.uid)
+        if uid != user.uid {
+            coins = 0
+            dailyChallengeStreak = 0
+            timerChallengeStreak = 0
+            dailyChallengeLastSolved = nil
+            timerChallengeLastSolved = nil
+            hasTimerChallengeProgress = false
+            preferredFilter = "All"
+        }
         currentUser = user
         uid = user.uid
         await loadUserData()
@@ -85,6 +94,7 @@ final class UserViewModel: ObservableObject {
         do {
             let docRef = db.collection("users").document(uid)
             let doc = try await docRef.getDocument()
+            guard doc.documentID == uid, Auth.auth().currentUser?.uid == uid else { return }
             if let data = doc.data() {
                 self.coins = data["coins"] as? Int ?? 0
                 print("UserViewModel: Refreshed coins: \(self.coins)")
@@ -137,6 +147,7 @@ final class UserViewModel: ObservableObject {
     
     func loadHasTimerProgress() async {
         guard !uid.isEmpty, uid != "guest" else { return }
+        let loadingUID = uid
         
         let docRef = db.collection("users")
             .document(uid)
@@ -145,6 +156,7 @@ final class UserViewModel: ObservableObject {
 
         do {
             let doc = try await docRef.getDocument()
+            guard uid == loadingUID, Auth.auth().currentUser?.uid == loadingUID else { return }
             hasTimerChallengeProgress = doc.exists
         } catch {
             print("Failed to load timer progress: \(error)")
@@ -157,6 +169,7 @@ final class UserViewModel: ObservableObject {
             do {
                 let docRef = db.collection("users").document(uid)
                 let doc = try await docRef.getDocument()
+                guard doc.documentID == uid, Auth.auth().currentUser?.uid == uid else { return }
                 if let data = doc.data() {
                     self.dailyChallengeStreak = data["dailyChallengeStreak"] as? Int ?? 0
                     self.dailyChallengeLastSolved = (data["dailyChallengeLastSolved"] as? Timestamp)?.dateValue()

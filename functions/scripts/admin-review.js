@@ -3,28 +3,24 @@ import {randomBytes} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
 import {createRequire} from 'node:module';
 import {resolve} from 'node:path';
-import {initializeApp, applicationDefault} from 'firebase-admin/app';
-import {getFirestore, FieldValue} from 'firebase-admin/firestore';
+import {Firestore, FieldValue} from 'firebase-admin/firestore';
 import {authorizedRequest, validatePuzzleEdit, revisionOf} from '../src/admin-review.js';
 
 const projectId = 'puzzle-time-72ad9';
-let credential = applicationDefault();
+let credentials;
 let actor = 'local-admin';
 // Optional reuse of the owner's official Firebase CLI login, without exporting
 // refresh tokens or sending any administrator credential to the browser.
 if (process.env.FIREBASE_CLI_ROOT) {
   const require = createRequire(import.meta.url);
   const auth = require(resolve(process.env.FIREBASE_CLI_ROOT, 'lib/auth.js'));
+  const api = require(resolve(process.env.FIREBASE_CLI_ROOT, 'lib/api.js'));
   const account = auth.getGlobalDefaultAccount();
   if (!account?.tokens?.refresh_token) throw Error('Run firebase login first');
   actor = account.user.email;
-  credential = {getAccessToken: async () => {
-    const result = await auth.getAccessToken(account.tokens.refresh_token,
-      ['https://www.googleapis.com/auth/cloud-platform', 'https://www.googleapis.com/auth/firebase']);
-    return {access_token: result.access_token, expires_in: Math.max(60, Math.floor((result.expires_at - Date.now()) / 1000)) || 3000};
-  }};
+  credentials = {type: 'authorized_user', client_id: api.clientId(), client_secret: api.clientSecret(), refresh_token: account.tokens.refresh_token};
 }
-const db = getFirestore(initializeApp({projectId, credential}));
+const db = new Firestore({projectId, ...(credentials ? {credentials} : {})});
 const port = Number(process.env.ADMIN_PORT || 8787);
 const host = `127.0.0.1:${port}`;
 const token = randomBytes(32).toString('hex');

@@ -7,12 +7,14 @@ import Combine
 
 // MARK: - MAIN CAROUSEL VIEW
 struct RiddleCarouselView: View {
+    let title: String
     @StateObject private var vm: CarouselViewModel
     @EnvironmentObject var adVM: RewardedViewModel
     @EnvironmentObject var userVM: UserViewModel
     @Environment(\.colorScheme) var colorScheme
 
-    init(viewModel: RiddleViewModel, isDailyMode: Bool = false) {
+    init(viewModel: RiddleViewModel, isDailyMode: Bool = false, title: String = "Puzzles") {
+        self.title = title
         _vm = StateObject(wrappedValue: CarouselViewModel(viewModel: viewModel, isDailyMode: isDailyMode))
     }
 
@@ -39,7 +41,7 @@ struct RiddleCarouselView: View {
 
                 AdLoadingOverlay(isAdLoading: $vm.isAdLoading)
             }
-            .navigationTitle("Puzzles")
+            .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -181,7 +183,10 @@ struct PageDotsView: View {
     @ObservedObject var vm: CarouselViewModel
 
     var body: some View {
-        if !vm.filteredRiddles.isEmpty {
+        if vm.filteredRiddles.count > 10 {
+            Text("\(vm.filteredRiddles.count) puzzles · swipe to explore")
+                .font(.footnote).foregroundStyle(.secondary).padding(.vertical, 16)
+        } else if !vm.filteredRiddles.isEmpty {
             HStack(spacing: 10) {
                 ForEach(vm.filteredRiddles.indices, id: \.self) { riddleIndex in
                     let carouselIndex = vm.carouselItemIndex(forRiddleAt: riddleIndex)

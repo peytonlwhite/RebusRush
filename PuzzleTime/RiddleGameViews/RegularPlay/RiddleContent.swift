@@ -74,6 +74,11 @@ struct RiddleContent: View {
             }
             .overlay(HintCoinOverlay(hintCoinPop: hintCoinPop))
         }
+        .onChange(of: showReport) { reporting in
+            if isTimerChallenge {
+                if reporting { viewModel.pauseTimer() } else { viewModel.resumeTimer() }
+            }
+        }
         .sheet(isPresented: $showReport) {
             PuzzleReportView(riddle: riddle, attemptedAnswer: userAnswer)
         }
