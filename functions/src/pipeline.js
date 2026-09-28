@@ -44,6 +44,8 @@ export async function runWeekly({db, bucket, project, model, week, manualBatch, 
   });
   try {
     const current = await db.collection('riddles').get();
+    // Editors can correct answers without changing a published document ID.
+    const usedIds = new Set(current.docs.map(d => d.id));
     const excluded = new Set(current.docs.map(d => d.data().answer).filter(Boolean));
     const usedAnswers = new Set([...excluded].map(normalize));
     const usedLayouts = new Set(current.docs.map(d => d.data().layoutHash).filter(Boolean));
@@ -53,7 +55,7 @@ export async function runWeekly({db, bucket, project, model, week, manualBatch, 
     for (const doc of manual ? [] : candidates.docs) {
       const candidate = doc.data();
       excluded.add(candidate.puzzle.answer);
-      if (candidate.status === 'accepted' && !usedAnswers.has(normalize(candidate.puzzle.answer))) {
+      if (candidate.status === 'accepted' && !usedIds.has(doc.id) && !usedAnswers.has(normalize(candidate.puzzle.answer))) {
         const rendered = renderPuzzle(candidate.puzzle);
         accepted.push({...rendered, id: doc.id, hash: layoutHash(rendered.puzzle)});
         usedAnswers.add(normalize(rendered.puzzle.answer));
@@ -65,7 +67,7 @@ export async function runWeekly({db, bucket, project, model, week, manualBatch, 
     if (manual) {
       for (const rendered of manual.rendered) {
         const {puzzle} = rendered, hash = layoutHash(puzzle), id = puzzleId(puzzle.answer);
-        if (usedAnswers.has(normalize(puzzle.answer)) || usedLayouts.has(hash)) throw new Error('Manual batch duplicates the live library');
+        if (usedIds.has(id) || usedAnswers.has(normalize(puzzle.answer)) || usedLayouts.has(hash)) throw new Error('Manual batch duplicates the live library');
         accepted.push({...rendered, id, hash});
       }
       // These records explicitly describe manual review; no model verdict is fabricated.
@@ -94,6 +96,7 @@ export async function runWeekly({db, bucket, project, model, week, manualBatch, 
         catch (error) { logger.warn('Rejected invalid puzzle', {reason: error.message}); continue; }
         const {puzzle, png} = rendered;
         const answerKey = normalize(puzzle.answer), hash = layoutHash(puzzle), id = puzzleId(puzzle.answer);
+        if (usedIds.has(id)) { excluded.add(puzzle.answer); continue; }
         if (usedAnswers.has(answerKey) || usedLayouts.has(hash) || [...excluded].some(a => normalize(a) === answerKey)) continue;
         excluded.add(puzzle.answer);
         // More than five of the same mechanism would make the weekly batch repetitive.
@@ -151,7 +154,8 @@ export async function runWeekly({db, bucket, project, model, week, manualBatch, 
       if (settings?.enabled === false) throw new Error('Publication paused by adminSettings/weeklyPuzzles');
       const live = await tx.get(db.collection('riddles'));
       const existing = new Set(live.docs.map(d => normalize(d.data().answer ?? '')));
-      for (const doc of documents) if (existing.has(normalize(doc.answer))) throw new Error('A duplicate was added during generation; publishing aborted');
+      const existingIds = new Set(live.docs.map(d => d.id));
+      for (const doc of documents) if (existingIds.has(doc.id) || existing.has(normalize(doc.answer))) throw new Error('A duplicate was added during generation; publishing aborted');
       const createdAt = Timestamp.now();
       for (const {id, ...data} of documents) tx.create(db.collection('riddles').doc(id), {...data, createdAt});
       tx.update(runRef, {status: 'published', publishedAt: createdAt, updatedAt: createdAt,

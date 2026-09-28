@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { runWeekly } from '../src/pipeline.js';
-import { MECHANICS, MAX_CANDIDATES } from '../src/domain.js';
+import { MECHANICS, MAX_CANDIDATES, puzzleId } from '../src/domain.js';
 import { samples } from '../scripts/samples.js';
 
 // An in-memory transactional adapter exercises orchestration and failures without touching live Firebase.
@@ -107,6 +107,17 @@ test('existing answers are not overwritten even when punctuation differs', async
   await assert.rejects(runWeekly(args({db,bucket,aiFactory:fakeAI({duplicate:true})})),/Only 0\/20/);
   assert.deepEqual(db.records.get('riddles/legacy-id'), existing);
   assert.equal(published(db).length,1); assert.equal(bucket.objects.size,0);
+});
+
+test('corrected puzzle answers keep their original IDs reserved during generation', async () => {
+  const path = `riddles/${puzzleId('existing-answer')}`;
+  const original = {answer:'corrected answer',retired:true};
+  const db = fakeDB({[path]:original}), bucket = fakeBucket();
+  const aiFactory = options => ({...fakeAI({duplicate:true})(options),
+    solve:async()=>{throw Error('Must skip published IDs before reviewing an image');}});
+  await assert.rejects(runWeekly(args({db,bucket,aiFactory})),/Only 0\/20/);
+  assert.deepEqual(db.records.get(path), original);
+  assert.equal(bucket.objects.size,0);
 });
 test('a live lease prevents concurrent writers before any model or storage work', async () => {
   const db = fakeDB({'riddleGenerationRuns/2026-09-28':{status:'working',owner:'another-worker',leaseUntil:{toMillis:()=>Date.now()+60000}}});
