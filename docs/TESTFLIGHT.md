@@ -49,9 +49,16 @@ The existing gameplay review lists the device checks to perform.
 - The approved Developer upload API key and dedicated distribution identity/profile
   are installed as the six repository secrets listed above. Signing material is
   excluded from Git. The dedicated profile expires in September 2027.
-- Signed internal upload for version 1.1.1 (2) was started in
-  [run 36366669092](https://github.com/peytonlwhite/RebusRush/actions/runs/36366669092).
-  Starting the workflow is not confirmation of upload or TestFlight availability.
+- Signed internal upload for version 1.1.1 (2) succeeded in
+  [run 36366866653](https://github.com/peytonlwhite/RebusRush/actions/runs/36366866653).
+  The app's manual profile is applied only to its Release target in the disposable
+  CI checkout; applying it globally also incorrectly signs package resource bundles.
+- Apple accepted the upload. Processing and internal tester availability are checked
+  separately in App Store Connect after the workflow completes.
+- The successful upload reported missing vendor dSYMs for FirebaseFirestoreInternal,
+  GoogleMobileAds, UserMessagingPlatform, absl, gRPC and its OpenSSL frameworks. These
+  did not block upload, but crash stacks inside those prebuilt dependencies may lack
+  symbols. The application's compilation and signing succeeded.
 
 References: [GitHub signing guide](https://docs.github.com/en/actions/how-tos/deploy/deploy-to-third-party-platforms/sign-xcode-applications),
 [Apple build uploads](https://developer.apple.com/help/app-store-connect/manage-builds/upload-builds),
