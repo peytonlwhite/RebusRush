@@ -2,7 +2,7 @@
 
 ## Implementation and deployment status
 
-The implementation is in `functions/`. The function is deployed and ACTIVE, and its Cloud Scheduler job is ENABLED for Mondays at 09:00 America/Chicago. All 20 pipeline tests pass locally on Node 22 and in GitHub Actions. The initial week `2026-09-28` published 20 puzzles, taking the library from 80 to 100. All 80 original records were confirmed unchanged, and all 20 new image URLs were downloaded and verified as 1080 � 1080 PNGs. This initial batch counts toward September 28; the next new batch is October 5, 2026.
+The implementation is in `functions/`. The function is deployed and ACTIVE, and its Cloud Scheduler job is ENABLED for Mondays at 09:00 America/Chicago. All 20 pipeline tests pass locally on Node 22 and in GitHub Actions. The initial week `2026-09-28` published 20 puzzles, taking the library from 80 to 100. All 80 original records were confirmed unchanged, and all 20 new image URLs were downloaded and verified as 1080 × 1080 PNGs. This initial batch counts toward September 28; the next new batch is October 5, 2026.
 
 The first version produces text/shape rebuses, not illustrated scenes. Gemini designs the puzzles and independently checks the rendered images. A deterministic SVG-to-PNG renderer controls spelling, layout, gradients and branding. No third-party puzzle site is scraped. Familiar English phrases and rebus mechanics are allowed; hints, explanations and layouts are authored for this app.
 
@@ -10,7 +10,7 @@ The first version produces text/shape rebuses, not illustrated scenes. Gemini de
 
 - Monday at 09:00 in `America/Chicago`, including daylight-saving changes.
 - Firebase scheduled function `generateWeeklyPuzzles`, `us-central1`, separate codebase `weekly-puzzles`.
-- Target: exactly 20 puzzles, 1080 × 1080 PNGs with white bold Noto Sans, one of eight diagonal gradient palettes and the existing RebusRush logo at 18% opacity in the bottom-right. The answer deterministically selects a palette, so retries keep identical artwork.
+- Target: exactly 20 puzzles, 1080 Ã— 1080 PNGs with white bold Noto Sans, one of eight diagonal gradient palettes and the existing RebusRush logo at 18% opacity in the bottom-right. The answer deterministically selects a palette, so retries keep identical artwork.
 - The image/logo template is `functions/src/render.js`; the logo is a copy of the app's existing asset.
 - Gemini model is configurable using `PUZZLE_MODEL`, default `gemini-3.5-flash`. Google lists this stable model's retirement as May 19, 2027 or later (checked September 27, 2026). Review model availability before that date.
 - Required app fields: `answer`, `hints` (three), `explanation`, `photoUrl`, `createdAt`. The timestamp is essential because the existing app queries with `order(by: "createdAt")`.
@@ -54,11 +54,11 @@ npx firebase-tools@15.31.0 deploy --only functions:weekly-puzzles --project puzz
 
 Deployment uses the official Firebase CLI's account authorization. Runtime access uses Google's application-default service identity; no API keys or service-account private keys are committed. The project needs Cloud Functions/Run, Cloud Build, Artifact Registry, Eventarc, Cloud Scheduler and Vertex AI enabled. The runtime identity needs access to Firestore, the existing Storage bucket and Vertex AI inference. Use existing permissions where sufficient; do not weaken database or Storage security rules to make deployment work.
 
-### Firestore rules prerequisite and existing security issue
+### Firestore and Storage protection
 
-The deployed rules originally allowed anyone to read/write all Firestore data until November 29, 2026. The scoped `firestore.rules` change protects `riddleGenerationRuns/**` and `adminSettings/weeklyPuzzles/**` from ALL client reads/writes, including signed-in clients; Admin/IAM access still works. Generated `riddles/weekly_*` records remain readable but reject client writes. Forty Firestore cases passed Google's Rules test API before deployment. Existing app collections retain their earlier access behavior to avoid an untested gameplay migration. This is **not a full database security hardening**: existing public access must be replaced with tested per-user/content rules, and the original expiry date is unchanged. Treat that as an urgent separate follow-up.
+The deployed rules now require player ownership for user data, deny all client content edits, and remove the November expiry. Puzzle content and artwork remain readable. Generation runs, job controls, and review audit records require Admin/IAM access. All Storage uploads require server IAM. The current rules pass 158 Firestore and 16 Storage checks through Google's Rules testing API.
 
-Storage also had a legacy public-write rule through November 30, 2026. The scoped `storage.rules` change blocks all client writes under `riddles/generated/**` while preserving image reads and existing upload paths; 16 Google Rules API tests passed. Other public Storage writes still require the same separate security migration.
+Coin and streak calculations remain client-managed for compatibility with existing releases; these rules isolate players rather than implementing server-authoritative rewards. See [player features and private review](FEATURES_AND_REVIEW.md) for details and repeatable security tests.
 
 Deploy Storage protection with `firebase deploy --only storage --project puzzle-time-72ad9`. Deploy the scoped automation protection using `firebase deploy --only firestore:rules --project puzzle-time-72ad9` before triggering this function in a new environment. Do not run an unprotected automation ledger under a public-write catch-all rule.
 
