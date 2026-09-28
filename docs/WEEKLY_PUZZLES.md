@@ -2,7 +2,7 @@
 
 ## Implementation and deployment status
 
-The implementation is in `functions/`. The function is deployed and ACTIVE, and its Cloud Scheduler job is ENABLED for Mondays at 09:00 America/Chicago. All 12 pipeline tests pass locally on Node 22 and in GitHub Actions. The first live generation run is undergoing verification; no successful initial publication has been recorded in this document yet.
+The implementation is in `functions/`. The function is deployed and ACTIVE, and its Cloud Scheduler job is ENABLED for Mondays at 09:00 America/Chicago. All 15 pipeline tests pass locally on Node 22 and in GitHub Actions. The first live generation run is undergoing verification; no successful initial publication has been recorded in this document yet.
 
 The first version produces text/shape rebuses, not illustrated scenes. Gemini designs the puzzles and independently checks the rendered images. A deterministic SVG-to-PNG renderer controls spelling, layout, gradients and branding. No third-party puzzle site is scraped. Familiar English phrases and rebus mechanics are allowed; hints, explanations and layouts are authored for this app.
 
@@ -19,14 +19,14 @@ The first version produces text/shape rebuses, not illustrated scenes. Gemini de
 ## Generation and failure handling
 
 1. Acquire a 35-minute lease on `riddleGenerationRuns/{Monday-date}`. A completed week is a no-op.
-2. Read existing riddle answers and previously attempted candidates. Generate in batches of ten, up to 60 candidate slots per week. No more than five accepted puzzles may share one mechanic.
+2. Read existing riddle answers and previously attempted candidates. Generate in batches of five, up to 60 candidate slots per week. No more than five accepted puzzles may share one mechanic.
 3. Validate the JSON, all three hints, allowed characters, actual glyph bounds and text overlap. Reject exact normalized answer duplicates and exact layout duplicates. The generation prompt excludes trivial paraphrases, and the editorial model separately checks the answer against the existing library; semantic duplicate detection is still best-effort.
 4. Independently solve each PNG without supplying its answer. Require the same normalized answer, at least 0.85 reported confidence, and no ambiguity. A second editorial call checks the intended answer, clues, hints, explanation and family suitability. AI checks reduce errors; they are not proof of human solvability.
 5. Save accepted/rejected candidates in the run's `candidates` subcollection. These are never placed in the live `riddles` collection as drafts.
 6. Upload all 20 PNGs under `riddles/generated/{Monday-date}/`. Writes use Storage generation preconditions, immutable cache headers and download-token URLs matching the app's existing image format. Existing objects are reused only if their content hash matches.
 7. Atomically create all 20 Firestore records and mark the weekly run complete. A fresh transaction checks the library again before publishing. Existing records are never overwritten.
 
-Partial Storage uploads remain available for a retry but are not playable until the Firestore transaction succeeds. If fewer than 20 candidates pass, nothing is published; candidates and the reason remain in the run. A Scheduler retry is allowed once. Retry accounting persists: at most 140 model requests and 60 candidate slots per week, including failures. A model call has a 90-second timeout; the function has a 30-minute timeout and one instance. These are usage limits, not a dollar-denominated billing cap. Cloud Functions, Storage, Firestore, Scheduler and Gemini usage can incur charges on the existing Blaze plan.
+Partial Storage uploads remain available for a retry but are not playable until the Firestore transaction succeeds. If fewer than 20 candidates pass, nothing is published; candidates and the reason remain in the run. A Scheduler retry is allowed once. Retry accounting persists: at most 140 model requests and 60 candidate slots per week, including failed model requests. Candidate slots are counted only after a complete batch response is received. Low thinking effort and explicit output limits keep structured responses bounded; truncated responses fail closed. A model call has a 90-second timeout; the function has a 30-minute timeout and one instance. These are usage limits, not a dollar-denominated billing cap. Cloud Functions, Storage, Firestore, Scheduler and Gemini usage can incur charges on the existing Blaze plan.
 
 To pause publication, set `adminSettings/weeklyPuzzles.enabled` to `false`. The handler checks this at the start of each invocation and again inside the final publication transaction. An in-progress run may still consume generation calls and upload images, but it will not publish while paused. To inspect problems, check Cloud Logging and `riddleGenerationRuns/{week}.lastError`. Error notifications are not separately configured by this code.
 
@@ -56,9 +56,11 @@ Deployment uses the official Firebase CLI's account authorization. Runtime acces
 
 ### Firestore rules prerequisite and existing security issue
 
-The deployed rules originally allowed anyone to read/write all Firestore data until November 29, 2026. The scoped `firestore.rules` change protects `riddleGenerationRuns/**` and `adminSettings/weeklyPuzzles/**` from ALL client reads/writes, including signed-in clients; Admin/IAM access still works. Thirty-six cases passed Google's Rules test API before deployment. Existing app collections retain their earlier access behavior to avoid an untested gameplay migration. This is **not a full database security hardening**: existing public access must be replaced with tested per-user/content rules, and the original expiry date is unchanged. Treat that as an urgent separate follow-up.
+The deployed rules originally allowed anyone to read/write all Firestore data until November 29, 2026. The scoped `firestore.rules` change protects `riddleGenerationRuns/**` and `adminSettings/weeklyPuzzles/**` from ALL client reads/writes, including signed-in clients; Admin/IAM access still works. Thirty-six Firestore cases passed Google's Rules test API before deployment. Existing app collections retain their earlier access behavior to avoid an untested gameplay migration. This is **not a full database security hardening**: existing public access must be replaced with tested per-user/content rules, and the original expiry date is unchanged. Treat that as an urgent separate follow-up.
 
-Deploy the scoped automation protection using `firebase deploy --only firestore:rules --project puzzle-time-72ad9` before triggering this function in a new environment. Do not run an unprotected automation ledger under a public-write catch-all rule.
+Storage also had a legacy public-write rule through November 30, 2026. The scoped `storage.rules` change blocks all client writes under `riddles/generated/**` while preserving image reads and existing upload paths; 16 Google Rules API tests passed. Other public Storage writes still require the same separate security migration.
+
+Deploy Storage protection with `firebase deploy --only storage --project puzzle-time-72ad9`. Deploy the scoped automation protection using `firebase deploy --only firestore:rules --project puzzle-time-72ad9` before triggering this function in a new environment. Do not run an unprotected automation ledger under a public-write catch-all rule.
 
 After deployment, run the function's Cloud Scheduler job once from Google Cloud Console. Verify a `published` run with exactly 20 IDs, check the images, and confirm the next Monday schedule. Re-running the same calendar week must not add another batch. The first manually triggered run counts toward that week's 20.
 

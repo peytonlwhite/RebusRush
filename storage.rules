@@ -1,0 +1,20 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Preserve existing image downloads and legacy upload behavior. Replace the
+    // remaining public writes in a separate, tested app security migration.
+    match /{path=**} {
+      allow read: if request.time < timestamp.date(2026, 11, 30);
+    }
+    match /{folder}/{path=**} {
+      allow write: if request.time < timestamp.date(2026, 11, 30)
+        && folder != 'riddles';
+    }
+    match /riddles/{folder}/{path=**} {
+      // Generated assets are written exclusively through server Admin/IAM.
+      allow write: if request.time < timestamp.date(2026, 11, 30)
+        && folder != 'generated';
+    }
+  }
+}

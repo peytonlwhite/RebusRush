@@ -52,7 +52,7 @@ export async function runWeekly({db, bucket, project, model, week, aiFactory = c
     let candidateCount = (await runRef.get()).data().candidateCount;
     const ai = aiFactory({project, model, reserveCall});
     while (accepted.length < TARGET && candidateCount < MAX_CANDIDATES) {
-      const requested = Math.min(10, MAX_CANDIDATES - candidateCount);
+      const requested = Math.min(5, MAX_CANDIDATES - candidateCount);
       const generated = await ai.generate([...excluded], requested, mechanicCounts);
       if (!Array.isArray(generated) || generated.length === 0 || generated.length > requested) throw new Error('Invalid generated batch size');
       // Model-call attempts are already counted before the network request. Count

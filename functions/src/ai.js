@@ -9,21 +9,22 @@ const reviewSchema = {type: 'object', required: ['valid', 'hintsAccurate', 'expl
   familyFriendly: {type: 'boolean'}, distinctFromLibrary: {type: 'boolean'}, reason: {type: 'string'},
 }};
 
-export function createAI({project, model, reserveCall}) {
-  const client = new GoogleGenAI({vertexai: true, project, location: 'global', httpOptions: {timeout: 90000}});
+export function createAI({project, model, reserveCall, client = new GoogleGenAI({vertexai: true, project, location: 'global', httpOptions: {timeout: 90000}})}) {
   async function json(prompt, schema, png, temperature = 0.3) {
     // Count before sending, including failed requests; retries cannot reset the weekly budget.
     await reserveCall();
     const parts = [{text: prompt}];
     if (png) parts.push({inlineData: {mimeType: 'image/png', data: png.toString('base64')}});
     const response = await client.models.generateContent({model, contents: [{role: 'user', parts}], config: {
-      temperature, maxOutputTokens: png ? 2500 : 12000, responseMimeType: 'application/json', responseJsonSchema: schema,
+      temperature, maxOutputTokens: png ? 4000 : 16000, thinkingConfig: {thinkingLevel: 'LOW'},
+      responseMimeType: 'application/json', responseJsonSchema: schema,
     }});
+    if (response.candidates?.[0]?.finishReason === 'MAX_TOKENS') throw new Error('Model output reached its token limit; no partial puzzle accepted');
     if (!response.text) throw new Error('Model returned no JSON');
     return JSON.parse(response.text);
   }
   return {
-    async generate(excluded, count = 10, mechanicCounts = {}) {
+    async generate(excluded, count = 5, mechanicCounts = {}) {
       const prompt = `Design ${count} distinct English rebus puzzles for RebusRush, a family-friendly iPhone game.
 Use familiar idioms, everyday phrases and classic rebus mechanics, with newly authored layouts, explanations and hints.
 Do not reproduce named authors' drawings, quote website text, or use brands, celebrities, obscenity or obscure trivia.
