@@ -11,12 +11,14 @@ import FirebaseAILogic
 import FirebaseFirestore   // only if you need Firestore elsewhere
 
 final class RiddleEvaluator {
+    // Stable model supported by Firebase AI Logic; reviewed September 2026.
+    private static let modelName = "gemini-3.5-flash"
     let ai = FirebaseAI.firebaseAI(backend: .googleAI())
     private let model: GenerativeModel
     
     init() {
-        model = ai.generativeModel(modelName: "gemini-2.5-flash")
-        print("RiddleEvaluator: initialized with gemini-2.5-flash")
+        model = ai.generativeModel(modelName: Self.modelName)
+        print("RiddleEvaluator: initialized with \(Self.modelName)")
     }
     
     func evaluate(userAnswer: String, riddle: Riddle) async throws -> String {
