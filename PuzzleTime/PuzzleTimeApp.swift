@@ -102,6 +102,8 @@ struct PuzzleTimeApp: App {
         // NEW: Configure Firebase after setting App Check provider
         FirebaseApp.configure()
         AIConfiguration.configure()
+        NotificationPreferences.registerDefaults()
+        guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else { return }
         
         // NEW: Fetch and log App Check token for debug/production
         #if DEBUG || targetEnvironment(simulator)
@@ -126,8 +128,6 @@ struct PuzzleTimeApp: App {
             }
         #endif
         
-        // Existing: Register default notification preferences
-        NotificationPreferences.registerDefaults()
         
         
     }

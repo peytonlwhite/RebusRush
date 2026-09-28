@@ -31,6 +31,7 @@ class RewardedViewModel: NSObject, ObservableObject {
     
     override init() {
         super.init()
+        guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else { return }
         setupATTListener()
         // ✅ LOAD IMMEDIATELY
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) {

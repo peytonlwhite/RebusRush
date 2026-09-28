@@ -35,7 +35,7 @@ struct PuzzleTimeTests {
     @Test func oldPuzzlesDoNotGetInventedMetadata() throws {
         let riddle = try Firestore.Decoder().decode(Riddle.self, from: [
             "photoUrl": "https://example.com/p.png", "answer": "test", "hints": [String](), "explanation": "test"
-        ])
+        ], in: Firestore.firestore().collection("riddles").document("legacy-test"))
         #expect(riddle.difficultyLabel == nil)
         #expect(!riddle.isNew())
         #expect(riddle.retired != true)
