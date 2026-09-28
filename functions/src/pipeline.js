@@ -6,7 +6,14 @@ import { createAI } from './ai.js';
 
 const LEASE_MS = 35 * 60 * 1000;
 
-export async function runWeekly({db, bucket, project, model, week, aiFactory = createAI, logger = console}) {
+export async function verifyPublishedImage(url, expectedHash) {
+  const response = await fetch(url, {signal: AbortSignal.timeout(15000)});
+  if (!response.ok || !response.headers.get('content-type')?.startsWith('image/png')) throw new Error('Uploaded puzzle image is not publicly downloadable');
+  const bytes = Buffer.from(await response.arrayBuffer());
+  if (digest(bytes) !== expectedHash) throw new Error('Downloaded puzzle image differs from the approved render');
+}
+
+export async function runWeekly({db, bucket, project, model, week, aiFactory = createAI, verifyImage = verifyPublishedImage, logger = console}) {
   const runRef = db.collection('riddleGenerationRuns').doc(week);
   const owner = randomUUID();
   const claim = await db.runTransaction(async tx => {
@@ -99,7 +106,9 @@ export async function runWeekly({db, bucket, project, model, week, aiFactory = c
       try {
         await file.save(png, {resumable: false, validation: 'crc32c', preconditionOpts: {ifGenerationMatch: 0}, metadata: {
           contentType: 'image/png', cacheControl: 'public,max-age=31536000,immutable',
-          metadata: {firebaseStorageDownloadTokens: token, sha256: imageHash, generationWeek: week},
+          // The installed Resize Images extension otherwise deletes originals and
+          // changes their tokens. These images already have their final dimensions.
+          metadata: {firebaseStorageDownloadTokens: token, sha256: imageHash, generationWeek: week, resizedImage: 'true'},
         }});
       } catch (error) {
         if (Number(error.code) !== 412) throw error;
@@ -110,6 +119,7 @@ export async function runWeekly({db, bucket, project, model, week, aiFactory = c
         actualToken = metadata.metadata.firebaseStorageDownloadTokens;
       }
       const photoUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(objectPath)}?alt=media&token=${actualToken}`;
+      await verifyImage(photoUrl, imageHash);
       documents.push({id, answer: puzzle.answer, hints: puzzle.hints, explanation: puzzle.explanation, photoUrl,
         difficulty: puzzle.difficulty, mechanic: puzzle.mechanic, normalizedAnswer: normalize(puzzle.answer),
         layoutHash: hash, generationWeek: week, styleVersion: STYLE_VERSION, generatorModel: model,

@@ -57,7 +57,7 @@ function fakeAI({reject = false, duplicate = false} = {}) {
   });
 }
 const logger = {info(){},warn(){}};
-const args = extra => ({project:'test',model:'fake',week:'2026-09-28',logger,...extra});
+const args = extra => ({project:'test',model:'fake',week:'2026-09-28',logger,verifyImage:async()=>{},...extra});
 const published = db => [...db.records.keys()].filter(k=>k.startsWith('riddles/'));
 
 test('publishes exactly 20 with all required app fields and no second batch on retry', async () => {
@@ -65,6 +65,7 @@ test('publishes exactly 20 with all required app fields and no second batch on r
   const result = await runWeekly(args({db,bucket,aiFactory:fakeAI()}));
   assert.equal(result.count, 20);
   assert.equal(bucket.objects.size, 20);
+  for (const image of bucket.objects.values()) assert.equal(image.metadata.resizedImage, 'true');
   assert.equal(published(db).length, 20);
   for (const key of published(db)) {
     const value = db.records.get(key);
@@ -73,6 +74,15 @@ test('publishes exactly 20 with all required app fields and no second batch on r
   }
   const rerun = await runWeekly(args({db,bucket,aiFactory:()=>{throw new Error('Must not generate twice');}}));
   assert.equal(rerun.status,'published'); assert.equal(published(db).length,20);
+});
+
+test('a broken public image URL prevents publication of the entire batch', async () => {
+  const db = fakeDB(), bucket = fakeBucket();
+  let checked = 0;
+  const verifyImage = async () => {if (++checked === 7) throw new Error('Image URL returned 404');};
+  await assert.rejects(runWeekly(args({db,bucket,aiFactory:fakeAI(),verifyImage})), /Image URL returned 404/);
+  assert.equal(published(db).length, 0);
+  assert.equal(db.records.get('riddleGenerationRuns/2026-09-28').status, 'failed');
 });
 test('partial Storage failure publishes zero puzzles; retry reuses accepted candidates and uploads', async () => {
   const db = fakeDB(), bucket = fakeBucket({failAt:7});
