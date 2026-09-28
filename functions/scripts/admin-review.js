@@ -1,27 +1,31 @@
 import {createServer} from 'node:http';
 import {randomBytes} from 'node:crypto';
+import {existsSync} from 'node:fs';
 import {readFile} from 'node:fs/promises';
 import {createRequire} from 'node:module';
-import {resolve} from 'node:path';
+import {resolve, delimiter} from 'node:path';
 import {Firestore, FieldValue} from 'firebase-admin/firestore';
 import {authorizedRequest, validatePuzzleEdit, revisionOf} from '../src/admin-review.js';
 
 const projectId = 'puzzle-time-72ad9';
+const cliRoot = process.env.FIREBASE_CLI_ROOT || (process.env.PATH || '').split(delimiter)
+  .map(entry => resolve(entry, '..', 'firebase-tools'))
+  .find(candidate => existsSync(resolve(candidate, 'lib/auth.js')));
 let credentials;
 let actor = 'local-admin';
 // Optional reuse of the owner's official Firebase CLI login, without exporting
 // refresh tokens or sending any administrator credential to the browser.
-if (process.env.FIREBASE_CLI_ROOT) {
+if (cliRoot) {
   const require = createRequire(import.meta.url);
-  const auth = require(resolve(process.env.FIREBASE_CLI_ROOT, 'lib/auth.js'));
-  const api = require(resolve(process.env.FIREBASE_CLI_ROOT, 'lib/api.js'));
+  const auth = require(resolve(cliRoot, 'lib/auth.js'));
+  const api = require(resolve(cliRoot, 'lib/api.js'));
   const account = auth.getGlobalDefaultAccount();
   if (!account?.tokens?.refresh_token) throw Error('Run firebase login first');
   actor = account.user.email;
   credentials = {type: 'authorized_user', client_id: api.clientId(), client_secret: api.clientSecret(), refresh_token: account.tokens.refresh_token};
 }
 const db = new Firestore({projectId, ...(credentials ? {credentials} : {})});
-const port = Number(process.env.ADMIN_PORT || 8787);
+const port = Number(process.env.ADMIN_PORT || 8793);
 const host = `127.0.0.1:${port}`;
 const token = randomBytes(32).toString('hex');
 const assets = new Map([
@@ -81,5 +85,9 @@ const server = createServer(async (request, response) => {
     }
     return reply(404, {error: 'Not found'});
   } catch (error) { return reply(400, {error: error.message}); }
+});
+server.on('error', error => {
+  console.error(error.code === 'EADDRINUSE' ? `Port ${port} is busy. Close the existing review server or set ADMIN_PORT to another port.` : error.message);
+  process.exitCode = 1;
 });
 server.listen(port, '127.0.0.1', () => console.log(`RebusRush private review: http://${host}/#${token}\nStop this process when finished. Changes save to ${projectId}.`));

@@ -212,7 +212,7 @@ struct TimerChallengeView: View {
                     print("Pausing timer due to external pause (e.g., ad)")
                     timer?.invalidate()
                     isTimerRunning = false
-                } else if !isPaused && isViewActive && hasSavedProgress && !isLoading.values.contains(true) && !isTimerRunning && timerSeconds > 0 && !riddleResults.values.allSatisfy({ $0 }) {
+                } else if !isPaused && isViewActive && hasSavedProgress && !isLoading.values.contains(true) && !isTimerRunning && timerSeconds > 0 && !(riddleResults.count == 3 && riddleResults.values.allSatisfy({ $0 })) {
                     print("Resuming timer due to external resume")
                     isTimerRunning = true
                     startTicker()
@@ -381,6 +381,7 @@ struct TimerChallengeView: View {
 
     @MainActor
     private func submit(riddle: Riddle, index: Int, usedHints: Int) async {
+        let submittingUID = userVM.uid
         let input = (userAnswers[index] ?? "").trimmingCharacters(in: .whitespaces).lowercased()
         guard !input.isEmpty, isViewActive, saveError == nil, timerSeconds > 0,
               !isSaving, !isLoading.values.contains(true),
@@ -398,6 +399,7 @@ struct TimerChallengeView: View {
 
         do {
             let verdict = try await evaluator.evaluate(userAnswer: input, riddle: riddle)
+            guard userVM.uid == submittingUID else { return }
             let isCorrect = verdict == "correct"
             lastAnsweredRiddleId = riddle.uiId  // ← This is the key!
 
@@ -412,7 +414,7 @@ struct TimerChallengeView: View {
             isSaving = true
             print("Saving progress after submission for riddle \(index), riddleResults = \(riddleResults)")
             let awardedCoins = await viewModel.saveTimerChallengeProgress(
-                userId: userVM.uid,
+                userId: submittingUID,
                 date: challengeDate,
                 played: true,
                 completed: riddleResults.count == viewModel.timerRiddles.count && riddleResults.values.allSatisfy({ $0 }),

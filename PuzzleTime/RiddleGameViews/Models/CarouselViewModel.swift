@@ -137,6 +137,7 @@ class CarouselViewModel: ObservableObject {
     }
 
     func submit(riddle: Riddle, usedHints: Int, userVM: UserViewModel) {
+        let submittingUID = userVM.uid
         let input = userAnswer.trimmingCharacters(in: .whitespaces).lowercased()
         let progress = isDailyMode ? viewModel.dailyProgressCache[riddle.uiId] : viewModel.progressCache[riddle.uiId]
         guard !input.isEmpty, progress?.isCorrect != true,
@@ -151,6 +152,7 @@ class CarouselViewModel: ObservableObject {
             defer { submittingRiddleIDs.remove(riddle.uiId) }
             do {
                 let verdict = try await evaluator.evaluate(userAnswer: input, riddle: riddle)
+                guard userVM.uid == submittingUID else { isLoading = false; return }
                 let isCorrect = verdict == "correct"
                 let latestProgress = isDailyMode ? viewModel.dailyProgressCache[riddle.uiId] : viewModel.progressCache[riddle.uiId]
                 let attempts = (latestProgress?.attempts ?? 0) + 1
@@ -164,7 +166,7 @@ class CarouselViewModel: ObservableObject {
                         isCorrect: isCorrect,
                         attempts: attempts,
                         usedHints: hintCount,
-                        userId: userVM.uid,
+                        userId: submittingUID,
                         isDaily: isDailyMode,
                         date: challengeDate,
                         revealedHintIndices: purchasedHints

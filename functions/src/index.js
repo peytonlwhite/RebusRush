@@ -8,6 +8,7 @@ import { weekId } from './domain.js';
 import { runWeekly } from './pipeline.js';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { getAuth } from 'firebase-admin/auth';
+import { deleteAccountData, hasRecentAuthentication } from './accounts.js';
 
 const project = 'puzzle-time-72ad9';
 const app = initializeApp({projectId: project, storageBucket: `${project}.firebasestorage.app`});
@@ -16,22 +17,11 @@ const model = defineString('PUZZLE_MODEL', {default: 'gemini-3.5-flash', descrip
 export const deletePlayerAccount = onCall({region: 'us-central1', enforceAppCheck: true,
   timeoutSeconds: 300, memory: '256MiB', maxInstances: 3}, async request => {
   if (!request.auth) throw new HttpsError('unauthenticated', 'Sign in before deleting your account.');
-  if (!Number.isFinite(request.auth.token.auth_time) || Date.now() / 1000 - request.auth.token.auth_time > 300) {
+  if (!hasRecentAuthentication(request.auth)) {
     throw new HttpsError('unauthenticated', 'Confirm your identity with Apple again.');
   }
-  const uid = request.auth.uid;
-  const db = getFirestore(app);
   // Delete data first. A failed operation can be retried while auth still exists.
-  await db.recursiveDelete(db.collection('users').doc(uid));
-  for (const name of ['puzzleReports', 'contactUs']) {
-    const records = await db.collection(name).where('userId', '==', uid).get();
-    for (let offset = 0; offset < records.docs.length; offset += 400) {
-      const batch = db.batch();
-      for (const record of records.docs.slice(offset, offset + 400)) batch.delete(record.ref);
-      await batch.commit();
-    }
-  }
-  await getAuth(app).deleteUser(uid);
+  await deleteAccountData(getFirestore(app), getAuth(app), request.auth.uid);
   return {deleted: true};
 });
 
