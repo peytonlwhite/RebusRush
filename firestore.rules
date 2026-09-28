@@ -1,0 +1,20 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Preserve the existing app's access behavior during the automation rollout.
+    // URGENT follow-up: replace this legacy public-access rule before 2026-11-29.
+    match /{collection}/{document=**} {
+      allow read, write: if request.time < timestamp.date(2026, 11, 29)
+        && collection != 'riddleGenerationRuns'
+        && collection != 'adminSettings';
+    }
+
+    // Existing app settings retain their previous behavior. The new weekly job's
+    // controls and all generation run records are accessible only via Admin/IAM.
+    match /adminSettings/{setting}/{document=**} {
+      allow read, write: if request.time < timestamp.date(2026, 11, 29)
+        && setting != 'weeklyPuzzles';
+    }
+  }
+}

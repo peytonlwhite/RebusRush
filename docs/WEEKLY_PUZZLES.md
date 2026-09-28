@@ -2,7 +2,7 @@
 
 ## Implementation and deployment status
 
-The implementation is in `functions/`. Local rendering and orchestration tests pass. Deployment and a real generation/upload run still require Firebase CLI authorization; this file must be updated after those are verified. No generated batch has been published yet.
+The implementation is in `functions/`. The function is deployed and ACTIVE, and its Cloud Scheduler job is ENABLED for Mondays at 09:00 America/Chicago. All 12 pipeline tests pass locally on Node 22 and in GitHub Actions. The first live generation run is undergoing verification; no successful initial publication has been recorded in this document yet.
 
 The first version produces text/shape rebuses, not illustrated scenes. Gemini designs the puzzles and independently checks the rendered images. A deterministic SVG-to-PNG renderer controls spelling, layout, gradients and branding. No third-party puzzle site is scraped. Familiar English phrases and rebus mechanics are allowed; hints, explanations and layouts are authored for this app.
 
@@ -53,6 +53,12 @@ npx firebase-tools@15.31.0 deploy --only functions:weekly-puzzles --project puzz
 ```
 
 Deployment uses the official Firebase CLI's account authorization. Runtime access uses Google's application-default service identity; no API keys or service-account private keys are committed. The project needs Cloud Functions/Run, Cloud Build, Artifact Registry, Eventarc, Cloud Scheduler and Vertex AI enabled. The runtime identity needs access to Firestore, the existing Storage bucket and Vertex AI inference. Use existing permissions where sufficient; do not weaken database or Storage security rules to make deployment work.
+
+### Firestore rules prerequisite and existing security issue
+
+The deployed rules originally allowed anyone to read/write all Firestore data until November 29, 2026. The scoped `firestore.rules` change protects `riddleGenerationRuns/**` and `adminSettings/weeklyPuzzles/**` from ALL client reads/writes, including signed-in clients; Admin/IAM access still works. Thirty-six cases passed Google's Rules test API before deployment. Existing app collections retain their earlier access behavior to avoid an untested gameplay migration. This is **not a full database security hardening**: existing public access must be replaced with tested per-user/content rules, and the original expiry date is unchanged. Treat that as an urgent separate follow-up.
+
+Deploy the scoped automation protection using `firebase deploy --only firestore:rules --project puzzle-time-72ad9` before triggering this function in a new environment. Do not run an unprotected automation ledger under a public-write catch-all rule.
 
 After deployment, run the function's Cloud Scheduler job once from Google Cloud Console. Verify a `published` run with exactly 20 IDs, check the images, and confirm the next Monday schedule. Re-running the same calendar week must not add another batch. The first manually triggered run counts toward that week's 20.
 
