@@ -1,0 +1,9 @@
+# Local signing credentials and build output
+.local-signing/
+*.p8
+*.p12
+*.mobileprovision
+*.xcarchive/
+*.ipa
+DerivedData/
+build/
