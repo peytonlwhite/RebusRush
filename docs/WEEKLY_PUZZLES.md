@@ -2,7 +2,7 @@
 
 ## Implementation and deployment status
 
-The implementation is in `functions/`. The function is deployed and ACTIVE, and its Cloud Scheduler job is ENABLED for Mondays at 09:00 America/Chicago. All 18 pipeline tests pass locally on Node 22 and in GitHub Actions. The initial week `2026-09-28` published 20 puzzles, taking the library from 80 to 100. All 80 original records were confirmed unchanged, and all 20 new image URLs were downloaded and verified as 1080 × 1080 PNGs. This initial batch counts toward September 28; the next new batch is October 5, 2026.
+The implementation is in `functions/`. The function is deployed and ACTIVE, and its Cloud Scheduler job is ENABLED for Mondays at 09:00 America/Chicago. All 20 pipeline tests pass locally on Node 22 and in GitHub Actions. The initial week `2026-09-28` published 20 puzzles, taking the library from 80 to 100. All 80 original records were confirmed unchanged, and all 20 new image URLs were downloaded and verified as 1080 × 1080 PNGs. This initial batch counts toward September 28; the next new batch is October 5, 2026.
 
 The first version produces text/shape rebuses, not illustrated scenes. Gemini designs the puzzles and independently checks the rendered images. A deterministic SVG-to-PNG renderer controls spelling, layout, gradients and branding. No third-party puzzle site is scraped. Familiar English phrases and rebus mechanics are allowed; hints, explanations and layouts are authored for this app.
 
@@ -10,7 +10,7 @@ The first version produces text/shape rebuses, not illustrated scenes. Gemini de
 
 - Monday at 09:00 in `America/Chicago`, including daylight-saving changes.
 - Firebase scheduled function `generateWeeklyPuzzles`, `us-central1`, separate codebase `weekly-puzzles`.
-- Target: exactly 20 puzzles, 1080 Ã— 1080 PNGs with white bold Noto Sans, a diagonal blue-purple gradient and the existing RebusRush logo at 18% opacity in the upper-right.
+- Target: exactly 20 puzzles, 1080 Ã— 1080 PNGs with white bold Noto Sans, one of eight diagonal gradient palettes and the existing RebusRush logo at 18% opacity in the bottom-right. The answer deterministically selects a palette, so retries keep identical artwork.
 - The image/logo template is `functions/src/render.js`; the logo is a copy of the app's existing asset.
 - Gemini model is configurable using `PUZZLE_MODEL`, default `gemini-3.5-flash`. Google lists this stable model's retirement as May 19, 2027 or later (checked September 27, 2026). Review model availability before that date.
 - Required app fields: `answer`, `hints` (three), `explanation`, `photoUrl`, `createdAt`. The timestamp is essential because the existing app queries with `order(by: "createdAt")`.
@@ -23,7 +23,7 @@ The first version produces text/shape rebuses, not illustrated scenes. Gemini de
 3. Validate the JSON, all three hints, allowed characters, actual glyph bounds and text overlap. Reject exact normalized answer duplicates and exact layout duplicates. The generation prompt excludes trivial paraphrases, and the editorial model separately checks the answer against the existing library; semantic duplicate detection is still best-effort.
 4. Independently solve each PNG without supplying its answer. Require the same normalized answer, at least 0.85 reported confidence, and no ambiguity. A second editorial call checks the intended answer, clues, hints, explanation and family suitability. AI checks reduce errors; they are not proof of human solvability.
 5. Save accepted/rejected candidates in the run's `candidates` subcollection. These are never placed in the live `riddles` collection as drafts.
-6. Upload all 20 PNGs under `riddles/generated/{Monday-date}/`. Writes use Storage generation preconditions, immutable cache headers and download-token URLs matching the app's existing image format. Existing objects are reused only if their content hash matches. Files include `resizedImage: "true"` because the existing Resize Images extension otherwise creates a new name/token and deletes the original. Every public image URL must download as PNG with the approved content hash before publication.
+6. Upload all 20 PNGs under `riddles/generated/{Monday-date}/{styleVersion}/`. Writes use Storage generation preconditions, immutable cache headers and download-token URLs matching the app's existing image format. Existing objects are reused only if their content hash matches. Files include `resizedImage: "true"` because the existing Resize Images extension otherwise creates a new name/token and deletes the original. Every public image URL must download as PNG with the approved content hash before publication.
 7. Atomically create all 20 Firestore records and mark the weekly run complete. A fresh transaction checks the library again before publishing. Existing records are never overwritten.
 
 Partial Storage uploads remain available for a retry but are not playable until the Firestore transaction succeeds. If fewer than 20 candidates pass, nothing is published; candidates and the reason remain in the run. A Scheduler retry is allowed once. Retry accounting persists: at most 140 model requests and 60 candidate slots per week, including failed model requests. Candidate slots are counted only after a complete batch response is received. Low thinking effort and explicit output limits keep structured responses bounded; truncated responses fail closed. Transient 429/5xx responses retry at most twice with exponential backoff and jitter, with every attempt counted against the same persisted budget. A model call has a 90-second timeout; the function has a 30-minute timeout and one instance. These are usage limits, not a dollar-denominated billing cap. Cloud Functions, Storage, Firestore, Scheduler and Gemini usage can incur charges on the existing Blaze plan.
@@ -71,3 +71,25 @@ Do not use `firebase deploy` without the scoped `--only` flag: the repo does not
 The first run used 61 model attempts and 30 candidate slots (including setup failures and rejected candidates). Initial failures exposed a Vertex schema-complexity limit, thinking/output truncation, transient capacity errors, and the existing image-resize extension's delete-original behavior. Regression tests and bounded retries cover these cases. The initial broken image references were repaired atomically after checking every replacement image. The existing resize extension configuration was left intact.
 
 Pipeline CI: https://github.com/peytonlwhite/RebusRush/actions/workflows/puzzle-pipeline.yml . The Firebase CLI can report a nonzero exit after a successful function update because the pre-existing shared Artifact Registry repository has no cleanup policy; verify the function ACTIVE state. This rollout did not apply a repository-wide deletion policy to unrelated build artifacts.
+
+## Alternate local authoring and upload
+
+We can author puzzle JSON in Codex and upload it without using Vertex AI. This is an on-demand fallback, not a second weekly schedule. The normal scheduled Vertex job remains enabled.
+
+Create a JSON object with a `puzzles` array using the same fields as `functions/scripts/samples.js`. From the `functions` directory, run:
+
+```sh
+npm run puzzles:import -- --file path/to/batch.json
+```
+
+This only validates and renders `output/manual/index.html`; it makes no Firebase or model calls. Review every image, answer, all three hints, and explanation, including semantic duplicates against the live library. Add `"reviewed": true` and a truthful `"reviewedBy"` label at the top level after review. Publication requires exactly 20 puzzles and existing Google Application Default Credentials with access to this Firebase project:
+
+```sh
+npm run puzzles:import -- --file path/to/batch.json --week 2026-10-05 --publish
+```
+
+Firebase CLI login alone does not configure Application Default Credentials. Use an authorized local ADC setup or invoke the shared pipeline with an already authorized Admin client; never commit credentials. The project and bucket are fixed to RebusRush.
+
+Manual publication uses the same weekly lease, existing-answer/layout checks, verified image downloads, admin pause, and atomic create-only publication. It consumes that week's batch, so the scheduled run cannot publish 20 more. Manual review is recorded explicitly; no automated solve/editor verdict is invented. A failed manual batch must be retried with the same reviewed content; the scheduler will not take over a pending manual batch. This route does not perform AI semantic review, so that review belongs to the local author/reviewer.
+
+The `varied-gradients-v2` rollout also restyles the initial 20 puzzles in place using new versioned image URLs, preserving their IDs, answers, hints, explanations, timestamps and player progress. The original images are retained for rollback.

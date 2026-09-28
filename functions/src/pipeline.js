@@ -3,6 +3,7 @@ import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { TARGET, MAX_CANDIDATES, MAX_MODEL_CALLS, normalize, puzzleId, layoutHash, digest, passesReview } from './domain.js';
 import { renderPuzzle, STYLE_VERSION } from './render.js';
 import { createAI } from './ai.js';
+import { prepareManualBatch } from './manual.js';
 
 const LEASE_MS = 35 * 60 * 1000;
 
@@ -13,17 +14,21 @@ export async function verifyPublishedImage(url, expectedHash) {
   if (digest(bytes) !== expectedHash) throw new Error('Downloaded puzzle image differs from the approved render');
 }
 
-export async function runWeekly({db, bucket, project, model, week, aiFactory = createAI, verifyImage = verifyPublishedImage, logger = console}) {
+export async function runWeekly({db, bucket, project, model, week, manualBatch, aiFactory = createAI, verifyImage = verifyPublishedImage, logger = console}) {
+  const manual = manualBatch ? prepareManualBatch(manualBatch) : null;
   const runRef = db.collection('riddleGenerationRuns').doc(week);
   const owner = randomUUID();
   const claim = await db.runTransaction(async tx => {
     const old = (await tx.get(runRef)).data() ?? {};
     if (old.status === 'published') return 'published';
     if (old.leaseUntil?.toMillis() > Date.now()) return 'busy';
-    if ((old.modelCalls ?? 0) >= MAX_MODEL_CALLS) throw new Error('Weekly model-call budget exhausted');
+    if (old.manualBatchHash && !manual) return 'manual-review-required';
+    if (manual && old.manualBatchHash && old.manualBatchHash !== manual.hash) throw new Error('Retry must use the same reviewed manual batch');
+    if (!manual && (old.modelCalls ?? 0) >= MAX_MODEL_CALLS) throw new Error('Weekly model-call budget exhausted');
     tx.set(runRef, {status: 'working', owner, leaseUntil: Timestamp.fromMillis(Date.now() + LEASE_MS),
       startedAt: old.startedAt ?? Timestamp.now(), updatedAt: Timestamp.now(), model,
       modelCalls: old.modelCalls ?? 0, candidateCount: old.candidateCount ?? 0, target: TARGET,
+      ...(manual ? {manualBatchHash: manual.hash, reviewedBy: manual.reviewedBy, source: 'manual-reviewed'} : {source: 'vertex-ai'}),
     }, {merge: true});
     return 'claimed';
   });
@@ -45,7 +50,7 @@ export async function runWeekly({db, bucket, project, model, week, aiFactory = c
     const candidates = await runRef.collection('candidates').get();
     const accepted = [];
     const mechanicCounts = {};
-    for (const doc of candidates.docs) {
+    for (const doc of manual ? [] : candidates.docs) {
       const candidate = doc.data();
       excluded.add(candidate.puzzle.answer);
       if (candidate.status === 'accepted' && !usedAnswers.has(normalize(candidate.puzzle.answer))) {
@@ -57,7 +62,19 @@ export async function runWeekly({db, bucket, project, model, week, aiFactory = c
       }
     }
     let candidateCount = (await runRef.get()).data().candidateCount;
-    const ai = aiFactory({project, model, reserveCall});
+    if (manual) {
+      for (const rendered of manual.rendered) {
+        const {puzzle} = rendered, hash = layoutHash(puzzle), id = puzzleId(puzzle.answer);
+        if (usedAnswers.has(normalize(puzzle.answer)) || usedLayouts.has(hash)) throw new Error('Manual batch duplicates the live library');
+        accepted.push({...rendered, id, hash});
+      }
+      // These records explicitly describe manual review; no model verdict is fabricated.
+      for (const item of accepted) await runRef.collection('candidates').doc(item.id).set({
+        puzzle: item.puzzle, status: 'accepted', source: 'manual-reviewed', reviewedBy: manual.reviewedBy,
+        checkedAt: Timestamp.now(), layoutHash: item.hash, styleVersion: STYLE_VERSION,
+      });
+    }
+    const ai = manual ? null : aiFactory({project, model, reserveCall});
     while (accepted.length < TARGET && candidateCount < MAX_CANDIDATES) {
       const requested = Math.min(5, MAX_CANDIDATES - candidateCount);
       const generated = await ai.generate([...excluded], requested, mechanicCounts);
@@ -97,8 +114,8 @@ export async function runWeekly({db, bucket, project, model, week, aiFactory = c
     if (accepted.length < TARGET) throw new Error(`Only ${accepted.length}/${TARGET} puzzles passed. Nothing published; accepted candidates saved for inspection.`);
     const selected = accepted.slice(0, TARGET);
     const documents = [];
-    for (const {puzzle, png, id, hash} of selected) {
-      const objectPath = `riddles/generated/${week}/${id}.png`;
+    for (const {puzzle, png, id, hash, paletteId} of selected) {
+      const objectPath = `riddles/generated/${week}/${STYLE_VERSION}/${id}.png`;
       const file = bucket.file(objectPath);
       const token = randomUUID();
       const imageHash = digest(png);
@@ -122,8 +139,9 @@ export async function runWeekly({db, bucket, project, model, week, aiFactory = c
       await verifyImage(photoUrl, imageHash);
       documents.push({id, answer: puzzle.answer, hints: puzzle.hints, explanation: puzzle.explanation, photoUrl,
         difficulty: puzzle.difficulty, mechanic: puzzle.mechanic, normalizedAnswer: normalize(puzzle.answer),
-        layoutHash: hash, generationWeek: week, styleVersion: STYLE_VERSION, generatorModel: model,
-        provenance: 'Generated from common English phrases; original rendered layout and authored clues',
+        layoutHash: hash, generationWeek: week, styleVersion: STYLE_VERSION, paletteId, generatorModel: model,
+        provenance: manual ? 'Locally authored and manually reviewed; original rendered layout and clues' : 'Generated from common English phrases; original rendered layout and authored clues',
+        ...(manual ? {reviewMethod: 'manual', reviewedBy: manual.reviewedBy} : {reviewMethod: 'model'}),
       });
     }
     // All 20 become visible atomically, only after every image exists. Never overwrite an existing puzzle.

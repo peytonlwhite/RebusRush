@@ -130,3 +130,26 @@ test('failed model requests consume the call budget but not nonexistent candidat
   assert.equal(run.modelCalls,1); assert.equal(run.candidateCount,0); assert.equal(run.status,'failed');
   assert.equal(published(db).length,0);
 });
+
+const manualFixture = () => ({reviewed: true, reviewedBy: 'Test reviewer', puzzles: Array.from({length:20}, (_, n) => ({
+  ...samples[0], answer: `manual fixture ${n}`, words: [{text:`CLUE ${n}`,x:540,y:540,size:100,rotation:0}],
+}))});
+test('reviewed local batches publish without model calls and share the weekly duplicate guard', async () => {
+  const db = fakeDB(), bucket = fakeBucket();
+  const options = args({db,bucket,manualBatch:manualFixture(),model:'manual-reviewed',aiFactory:()=>{throw new Error('Must not call a model');}});
+  const result = await runWeekly(options);
+  assert.equal(result.count, 20); assert.equal(published(db).length, 20);
+  assert.equal(db.records.get('riddleGenerationRuns/2026-09-28').modelCalls, 0);
+  for (const key of published(db)) assert.equal(db.records.get(key).reviewMethod, 'manual');
+  await runWeekly(args({db,bucket,aiFactory:()=>{throw new Error('Must not regenerate a manually published week');}}));
+  assert.equal(published(db).length, 20);
+});
+test('manual imports require recorded review and reject duplicate answers before upload', async () => {
+  const db = fakeDB(), bucket = fakeBucket();
+  await assert.rejects(runWeekly(args({db,bucket,manualBatch:{...manualFixture(),reviewed:false}})), /must record/);
+  const duplicate = manualFixture(); duplicate.puzzles[1] = duplicate.puzzles[0];
+  await assert.rejects(runWeekly(args({db,bucket,manualBatch:duplicate})), /Duplicate manual answers/);
+  const live = fakeDB({'riddles/existing':{answer:'manual fixture 0'}});
+  await assert.rejects(runWeekly(args({db:live,bucket,manualBatch:manualFixture()})), /duplicates the live library/);
+  assert.equal(bucket.objects.size, 0);
+});

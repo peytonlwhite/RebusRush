@@ -30,7 +30,7 @@ test('all six sample images are stable 1080px PNGs with specified logo placement
     assert.deepEqual(a.png, b.png);
     assert.equal(a.png.readUInt32BE(16), 1080);
     assert.equal(a.png.readUInt32BE(20), 1080);
-    assert.match(a.svg, /x="930" y="34".*opacity="0.18"/);
+    assert.match(a.svg, /x="948" y="948".*opacity="0.18"/);
   }
 });
 test('publishing requires independent agreement and all editorial checks', () => {

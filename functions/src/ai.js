@@ -44,7 +44,7 @@ Do not reproduce named authors' drawings, quote website text, or use brands, cel
 Target a varied mixture of easy, medium and hard puzzles. Prefer mechanics underrepresented so far: ${JSON.stringify(mechanicCounts)}.
 Mechanics: ${MECHANICS.join(', ')}. Each image must have one fair, natural answer; never force an obscure phrase to fit.
 There is NO image-generation model: the renderer places only your text and optional outline shapes exactly as specified.
-Canvas: 1080x1080, blue-purple diagonal gradient, white bold Noto Sans text. A faint logo occupies the upper-right 150x150 area.
+Canvas: 1080x1080, varied decorative gradient backgrounds, white bold Noto Sans text. A faint logo occupies the bottom-right area below y=940.
 All clue artwork must fit within x=60..1020, y=200..940. Word x,y specify its CENTER (not baseline).
 Text size 36..180, rotation exactly 0, 90, -90, or 180 degrees. Text length <=24 characters; split longer text into separate words.
 Allow roughly 0.75 * font size per character when budgeting widths. No overlapping words. Leave 25px gaps.

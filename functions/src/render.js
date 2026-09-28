@@ -2,12 +2,25 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { create } from 'fontkit';
 import { Resvg } from '@resvg/resvg-js';
-import { validatePuzzle } from './domain.js';
+import { validatePuzzle, digest, normalize } from './domain.js';
 
 const require = createRequire(import.meta.url);
 const font = create(readFileSync(require.resolve('@fontsource/noto-sans/files/noto-sans-latin-700-normal.woff')));
 const logo = readFileSync(new URL('../assets/logo.png', import.meta.url)).toString('base64');
-export const STYLE_VERSION = 'blue-purple-v1';
+export const STYLE_VERSION = 'varied-gradients-v2';
+export const PALETTES = [
+  {id: 'blue-purple', colors: ['#102950', '#344cad', '#8a46bb']},
+  {id: 'teal-ocean', colors: ['#103b47', '#087c86', '#286aa0']},
+  {id: 'purple-coral', colors: ['#412b72', '#89518e', '#b95b70']},
+  {id: 'forest-teal', colors: ['#173e36', '#287958', '#26858a']},
+  {id: 'midnight-cyan', colors: ['#152e59', '#285d8c', '#238698']},
+  {id: 'berry-rose', colors: ['#452857', '#803d7e', '#ae4d78']},
+  {id: 'amber-rust', colors: ['#503325', '#986033', '#ac503e']},
+  {id: 'indigo-lavender', colors: ['#272e60', '#535a99', '#8163aa']},
+];
+
+// Stable per answer: retries and local previews use exactly the same artwork.
+export const paletteFor = answer => PALETTES[parseInt(digest(normalize(answer)).slice(0, 8), 16) % PALETTES.length];
 
 // Font outlines make the image identical locally and in Cloud Run, with no system-font dependency.
 export function wordPaths(w) {
@@ -43,6 +56,7 @@ export function wordPaths(w) {
 
 export function renderPuzzle(input) {
   const puzzle = validatePuzzle(input);
+  const palette = paletteFor(puzzle.answer);
   const words = puzzle.words.map(wordPaths);
   for (let i = 0; i < words.length; i++) for (let j = i + 1; j < words.length; j++) {
     const a = words[i].bounds, b = words[j].bounds;
@@ -55,11 +69,11 @@ export function renderPuzzle(input) {
     return `<line x1="${s.x}" y1="${s.y}" x2="${s.x+s.width}" y2="${s.y+s.height}"/>`;
   }).join('');
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1080" viewBox="0 0 1080 1080">
-    <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#102950"/><stop offset="0.48" stop-color="#344cad"/><stop offset="1" stop-color="#8a46bb"/></linearGradient></defs>
+    <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${palette.colors[0]}"/><stop offset="0.48" stop-color="${palette.colors[1]}"/><stop offset="1" stop-color="${palette.colors[2]}"/></linearGradient></defs>
     <rect width="1080" height="1080" fill="url(#bg)"/>
-    <image href="data:image/png;base64,${logo}" x="930" y="34" width="116" height="116" opacity="0.18"/>
+    <image href="data:image/png;base64,${logo}" x="948" y="948" width="98" height="98" opacity="0.18"/>
     <g fill="none" stroke="#fff" stroke-width="7">${shapes}</g>${words.map(w => w.svg).join('')}
   </svg>`;
   const png = Buffer.from(new Resvg(svg, {font: {loadSystemFonts: false}}).render().asPng());
-  return {puzzle, svg, png};
+  return {puzzle, svg, png, paletteId: palette.id};
 }
