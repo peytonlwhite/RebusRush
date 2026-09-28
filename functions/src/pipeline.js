@@ -53,14 +53,16 @@ export async function runWeekly({db, bucket, project, model, week, aiFactory = c
     const ai = aiFactory({project, model, reserveCall});
     while (accepted.length < TARGET && candidateCount < MAX_CANDIDATES) {
       const requested = Math.min(10, MAX_CANDIDATES - candidateCount);
-      // Reserve the whole generation batch, so crashes/invalid output cannot bypass this cap.
+      const generated = await ai.generate([...excluded], requested, mechanicCounts);
+      if (!Array.isArray(generated) || generated.length === 0 || generated.length > requested) throw new Error('Invalid generated batch size');
+      // Model-call attempts are already counted before the network request. Count
+      // candidate slots only when an actual response exists, before processing it.
       await db.runTransaction(async tx => {
         const data = (await tx.get(runRef)).data(); assertOwner(data);
-        if (data.candidateCount + requested > MAX_CANDIDATES) throw new Error('Weekly candidate budget exhausted');
-        tx.update(runRef, {candidateCount: data.candidateCount + requested});
+        if (data.candidateCount + generated.length > MAX_CANDIDATES) throw new Error('Weekly candidate budget exhausted');
+        tx.update(runRef, {candidateCount: data.candidateCount + generated.length});
       });
-      candidateCount += requested;
-      const generated = await ai.generate([...excluded], requested, mechanicCounts);
+      candidateCount += generated.length;
       for (const raw of generated) {
         if (accepted.length >= TARGET) break;
         let rendered;

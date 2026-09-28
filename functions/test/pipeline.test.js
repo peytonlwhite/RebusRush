@@ -111,3 +111,12 @@ test('the publication transaction honors an admin pause even after images have b
   assert.equal(published(db).length,0);
   assert.equal(db.records.get('riddleGenerationRuns/2026-09-28').status,'failed');
 });
+
+test('failed model requests consume the call budget but not nonexistent candidate slots', async () => {
+  const db = fakeDB(), bucket = fakeBucket();
+  const aiFactory = ({reserveCall}) => ({async generate(){await reserveCall(); throw new Error('Model unavailable');}});
+  await assert.rejects(runWeekly(args({db,bucket,aiFactory})),/Model unavailable/);
+  const run = db.records.get('riddleGenerationRuns/2026-09-28');
+  assert.equal(run.modelCalls,1); assert.equal(run.candidateCount,0); assert.equal(run.status,'failed');
+  assert.equal(published(db).length,0);
+});
