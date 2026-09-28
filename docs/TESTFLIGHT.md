@@ -53,8 +53,9 @@ The existing gameplay review lists the device checks to perform.
   [run 36366866653](https://github.com/peytonlwhite/RebusRush/actions/runs/36366866653).
   The app's manual profile is applied only to its Release target in the disposable
   CI checkout; applying it globally also incorrectly signs package resource bundles.
-- Apple accepted the upload. Processing and internal tester availability are checked
-  separately in App Store Connect after the workflow completes.
+- Apple processed version 1.1.1 (2) successfully: `VALID`, `IN_BETA_TESTING`, internal
+  testing only. The existing FooWibble internal group automatically distributes Xcode
+  builds. Open TestFlight using the Apple account already enrolled in that group.
 - The successful upload reported missing vendor dSYMs for FirebaseFirestoreInternal,
   GoogleMobileAds, UserMessagingPlatform, absl, gRPC and its OpenSSL frameworks. These
   did not block upload, but crash stacks inside those prebuilt dependencies may lack
