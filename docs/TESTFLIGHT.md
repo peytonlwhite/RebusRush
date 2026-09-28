@@ -42,6 +42,17 @@ This app currently uses the production Firebase project. Installing a beta does
 not isolate its data. Use a test player and avoid resetting important player data.
 The existing gameplay review lists the device checks to perform.
 
+## Setup status (2026-09-28)
+
+- The iPhone Release build and simulator unit-test compilation passed in
+  [the first Mac build check](https://github.com/peytonlwhite/RebusRush/actions/runs/36365926836).
+- The approved Developer upload API key and dedicated distribution identity/profile
+  are installed as the six repository secrets listed above. Signing material is
+  excluded from Git. The dedicated profile expires in September 2027.
+- Signed internal upload for version 1.1.1 (2) was started in
+  [run 36366669092](https://github.com/peytonlwhite/RebusRush/actions/runs/36366669092).
+  Starting the workflow is not confirmation of upload or TestFlight availability.
+
 References: [GitHub signing guide](https://docs.github.com/en/actions/how-tos/deploy/deploy-to-third-party-platforms/sign-xcode-applications),
 [Apple build uploads](https://developer.apple.com/help/app-store-connect/manage-builds/upload-builds),
 [internal testers](https://developer.apple.com/help/app-store-connect/test-a-beta-version/add-internal-testers).

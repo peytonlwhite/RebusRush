@@ -31,9 +31,11 @@ No production records, rules, Storage assets, or deployed app versions were chan
 - Replaced the empty unit-test placeholder with nine regression tests covering
   production/legacy timer fields, hint retention, UTC streak behavior, and puzzle identity.
   The second pass added seven more, for 16 total; none have been executed here.
-- **Not compiled or executed:** this Windows workspace has neither Swift nor Xcode.
-  These changes are not release-verified. Firebase transaction behavior, actor isolation,
-  UI layout, ads, and lifecycle behavior still require an Xcode build and integration checks.
+- **Remote compilation passed:** the manual GitHub Mac build on 2026-09-28 compiled
+  the iPhone Release app and simulator unit-test target successfully
+  ([run 36365926836](https://github.com/peytonlwhite/RebusRush/actions/runs/36365926836)).
+  Tests were not executed. Firebase transaction behavior, UI layout, ads, and lifecycle
+  behavior still require integration/device checks before an App Store release.
 - Tests do not intentionally write database records, but the app-hosted test target
   launches the app; use a test Firebase configuration/emulator for integration runs.
 
@@ -117,6 +119,7 @@ No live Firebase data, rules, or deployments were modified during this pass.
   readable clock before merging progress. Each save retains its puzzle snapshot,
   and a response from an older session cannot replace a newer session's cache.
 
-Final checks are source/diff review only; the 16 Swift tests and iOS build still need
-Xcode. Add midnight solved-state display, expired-run badges, failed home-screen
+The final sweep used source/diff review; the subsequent remote Xcode build also
+compiled the app and all 16 test cases. Test execution is still outstanding.
+Add midnight solved-state display, expired-run badges, failed home-screen
 reads, and mismatched timer puzzle IDs to the device/integration checks above.
