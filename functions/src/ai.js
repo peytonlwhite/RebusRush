@@ -43,7 +43,9 @@ These existing/attempted answers must NOT be reused, even with different spacing
 ${JSON.stringify(excluded)}
 Return the requested puzzle objects, nothing else.`;
       const result = await json(prompt, {type: 'object', required: ['puzzles'], properties: {
-        puzzles: {type: 'array', minItems: count, maxItems: count, items: puzzleSchema},
+        // Constraining this outer array to ten nested objects exceeds Vertex's
+        // structured-output schema complexity limit. Enforce batch size in code.
+        puzzles: {type: 'array', items: puzzleSchema},
       }}, undefined, 0.9);
       if (!Array.isArray(result.puzzles)) throw new Error('Missing generated puzzles');
       return result.puzzles.slice(0, count);
