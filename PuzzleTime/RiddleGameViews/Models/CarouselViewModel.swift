@@ -36,9 +36,12 @@ class CarouselViewModel: ObservableObject {
     @Published var isAdLoading: Bool = false
     @Published var lastAnsweredRiddleId: String = ""
     @Published var carouselItems: [CarouselItem] = []
+    private var submittingRiddleIDs: Set<String> = []
+    private var progressSubscription: AnyCancellable?
 
     let viewModel: RiddleViewModel
     let isDailyMode: Bool
+    let challengeDate: Date
     let evaluator = RiddleEvaluator()
 
     enum RiddleFilter: String, CaseIterable {
@@ -55,6 +58,11 @@ class CarouselViewModel: ObservableObject {
     init(viewModel: RiddleViewModel, isDailyMode: Bool) {
         self.viewModel = viewModel
         self.isDailyMode = isDailyMode
+        self.challengeDate = viewModel.dailyChallengeDate
+        // SwiftUI does not automatically observe a view model nested inside another.
+        progressSubscription = viewModel.objectWillChange.sink { [weak self] _ in
+            self?.objectWillChange.send()
+        }
     }
 
     var filteredRiddles: [Riddle] {
@@ -76,7 +84,7 @@ class CarouselViewModel: ObservableObject {
     var formattedDate: String {
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
-        return formatter.string(from: Date())
+        return formatter.string(from: isDailyMode ? challengeDate : Date())
     }
 
     var accentColor: Color { .cyan }
@@ -105,6 +113,7 @@ class CarouselViewModel: ObservableObject {
         }
 
         carouselItems = items
+        selectedIndex = min(max(0, selectedIndex), max(0, items.count - 1))
     }
 
     func carouselItemIndex(forRiddleAt riddleIndex: Int) -> Int {
@@ -129,29 +138,36 @@ class CarouselViewModel: ObservableObject {
 
     func submit(riddle: Riddle, usedHints: Int, userVM: UserViewModel) {
         let input = userAnswer.trimmingCharacters(in: .whitespaces).lowercased()
-        guard !input.isEmpty else { return }
+        let progress = isDailyMode ? viewModel.dailyProgressCache[riddle.uiId] : viewModel.progressCache[riddle.uiId]
+        guard !input.isEmpty, progress?.isCorrect != true,
+              !submittingRiddleIDs.contains(riddle.uiId) else { return }
+        submittingRiddleIDs.insert(riddle.uiId)
 
         isLoading = true
         result = ""
         lastAnsweredRiddleId = "nil"
 
         Task {
+            defer { submittingRiddleIDs.remove(riddle.uiId) }
             do {
                 let verdict = try await evaluator.evaluate(userAnswer: input, riddle: riddle)
                 let isCorrect = verdict == "correct"
-                let attempts = (viewModel.progressCache[riddle.uiId]?.attempts ?? 0) + 1
-                let coinsEarned = isCorrect ? max(0, 50 - (attempts - 1) * 10 - usedHints * 10) : 0
+                let latestProgress = isDailyMode ? viewModel.dailyProgressCache[riddle.uiId] : viewModel.progressCache[riddle.uiId]
+                let attempts = (latestProgress?.attempts ?? 0) + 1
+                let purchasedHints = latestProgress?.revealedHintIndices ?? []
+                let hintCount = max(usedHints, purchasedHints.count)
+                var coinsEarned = isCorrect ? max(0, 50 - (attempts - 1) * 10 - hintCount * 10) : 0
 
                 if userVM.isLoggedIn {
-                    await viewModel.saveProgress(
+                    coinsEarned = try await viewModel.saveProgress(
                         riddle: riddle,
                         isCorrect: isCorrect,
                         attempts: attempts,
-                        usedHints: usedHints,
-                        coinsEarned: coinsEarned,
+                        usedHints: hintCount,
                         userId: userVM.uid,
-                        isDaily: isDailyMode && riddle.uiId == viewModel.dailyRiddle?.uiId,
-                        revealedHintIndices: Array(showingHintIndices)
+                        isDaily: isDailyMode,
+                        date: challengeDate,
+                        revealedHintIndices: purchasedHints
                     )
                 }
 
@@ -176,6 +192,7 @@ class CarouselViewModel: ObservableObject {
             } catch {
                 await MainActor.run {
                     result = "error"
+                    lastAnsweredRiddleId = riddle.uiId
                     isLoading = false
                     print("Evaluation failed: \(error)")
                 }

@@ -149,7 +149,7 @@ private struct CoreContentView: View {
                 isAdLoading: $isAdLoading
             )
             .zIndex(10)
-            .disabled(isTransitioning)
+            .disabled(isTransitioning || isLoading)
             .onChange(of: revealedHints) { newValue in
                 if newValue > usedHintsCount {
                     usedHintsCount = newValue
@@ -208,11 +208,9 @@ private struct CoreContentView: View {
                 }
                 return false
             } else if isDailyMode {
-                if let progress = progress as? RiddleProgress,
-                   let solvedDate = progress.solvedDate {
-                    return solvedDate.utcDayString == Date.utcDayString
-                }
-                return false
+                // This progress was loaded from the challenge's dated document.
+                // A solve after UTC midnight still belongs to that challenge.
+                return (progress as? RiddleProgress)?.isCorrect ?? false
             } else {
                 return (progress as? RiddleProgress)?.isCorrect ?? false
             }
@@ -361,6 +359,13 @@ private struct RiddleImageWithShareButton: View {
                 await MainActor.run {
                     if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
                        let rootViewController = windowScene.windows.first?.rootViewController {
+                        if let popover = activityController.popoverPresentationController {
+                            popover.sourceView = rootViewController.view
+                            popover.sourceRect = CGRect(x: rootViewController.view.bounds.midX,
+                                                       y: rootViewController.view.bounds.midY,
+                                                       width: 0, height: 0)
+                            popover.permittedArrowDirections = []
+                        }
                         rootViewController.present(activityController, animated: true) {
                             isSharing = false
                         }

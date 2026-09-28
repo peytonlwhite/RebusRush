@@ -25,7 +25,7 @@ struct HeaderView: View {
                     ForEach(CarouselViewModel.RiddleFilter.allCases, id: \.self) { filterOption in
                         Button(action: {
                             vm.filter = filterOption
-                            vm.selectedIndex = min(vm.selectedIndex, vm.filteredRiddles.count - 1)
+                            vm.selectedIndex = max(0, min(vm.selectedIndex, vm.filteredRiddles.count - 1))
                             vm.resetForNewRiddle()
                             withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
                                 vm.filterScale = 1.1
@@ -60,6 +60,7 @@ struct HeaderView: View {
                     )
                     .scaleEffect(vm.filterScale)
                 }
+                .disabled(vm.isLoading || vm.isAdLoading)
             }
         }
         .padding(.horizontal)

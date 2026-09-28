@@ -83,6 +83,7 @@ struct PuzzleTimeApp: App {
     @StateObject private var userVM = UserViewModel.shared
     @StateObject private var attStatusManager = ATTStatusManager.shared
     @StateObject var rewardedVM = RewardedViewModel.shared
+    @State private var signInError: String?
 
     init() {
         // NEW: Set up App Check provider before Firebase configure
@@ -106,9 +107,8 @@ struct PuzzleTimeApp: App {
                 if let error = error {
                     print("❌ Failed to get App Check debug token: \(error.localizedDescription)")
                     print("❌ Full error: \(error)")
-                } else if let token = token {
-                    print("✅ App Check Debug Token: \(token.token)")
-                    print("ℹ️ Add this token to Firebase Console > App Check > Apps > Your App > Manage Debug Tokens")
+                } else if token != nil {
+                    print("✅ App Check token acquired")
                 }
             }
         #endif
@@ -116,8 +116,7 @@ struct PuzzleTimeApp: App {
         #if !DEBUG && !targetEnvironment(simulator)
             Task {
                 do {
-                    let token = try await AppCheck.appCheck().token(forcingRefresh: false)
-                    print("✅ App Check Production Token: \(token.token)")
+                    _ = try await AppCheck.appCheck().token(forcingRefresh: false)
                 } catch {
                     print("❌ Failed to get App Check production token: \(error.localizedDescription)")
                     print("❌ Full error: \(error)")
@@ -140,10 +139,16 @@ struct PuzzleTimeApp: App {
                         .environmentObject(attStatusManager)
                         .environmentObject(rewardedVM)
                 } else {
-                    ProgressView("Signing in...")
-                        .onAppear {
-                            Task { try? await userVM.signInAnonymously() }
+                    VStack(spacing: 16) {
+                        if let signInError {
+                            Text(signInError)
+                                .multilineTextAlignment(.center)
+                            Button("Retry") { Task { await signIn() } }
+                        } else {
+                            ProgressView("Signing in...")
                         }
+                    }
+                    .padding()
                 }
             }
             .task {
@@ -160,9 +165,19 @@ struct PuzzleTimeApp: App {
             .task {
                 // Ensure login
                 if !userVM.isLoggedIn {
-                    try? await userVM.signInAnonymously()
+                    await signIn()
                 }
             }
+        }
+    }
+
+    @MainActor
+    private func signIn() async {
+        signInError = nil
+        do {
+            try await userVM.signInAnonymously()
+        } catch {
+            signInError = "Couldn't sign in. Check your connection and try again."
         }
     }
 }

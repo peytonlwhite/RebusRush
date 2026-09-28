@@ -21,53 +21,48 @@ final class UserViewModel: ObservableObject {
     private let db = Firestore.firestore()
     private var listener: AuthStateDidChangeListenerHandle?
     
+    private var signInTask: Task<Void, Error>?
+
     private init() {
-            startAuthListener()
-            // Kick off user creation immediately — fire and forget (safe)
-            Task {
-                await ensureUserDocumentExists()
-            }
-        }
-    
-    private func ensureUserDocumentExists() async {
-            guard let uid = Auth.auth().currentUser?.uid else { return }
-            
-            let userRef = db.collection("users").document(uid)
-            
+        startAuthListener()
+    }
+
+    private func ensureUserDocumentExists(for userId: String) async throws {
+        let userRef = db.collection("users").document(userId)
+        _ = try await db.runTransaction { transaction, errorPointer -> Any? in
             do {
-                let doc = try await userRef.getDocument()
-                if !doc.exists {
-                    try await userRef.setData([
-                        "coins": 300,
-                        "dailyChallengeStreak": 0,
-                        "dailyChallengeLastSolved": FieldValue.serverTimestamp(),
-                        "timerChallengeStreak": 0,
-                        "timerChallengeLastSolved": FieldValue.serverTimestamp(),
-                        "preferredFilter": "all"
-                    ])
-                    print("User document created for UID: \(uid)")
+                let snapshot = try transaction.getDocument(userRef)
+                if !snapshot.exists {
+                    transaction.setData(["coins": 300, "dailyChallengeStreak": 0,
+                        "timerChallengeStreak": 0, "preferredFilter": "All"], forDocument: userRef)
                 }
+                return true
             } catch {
-                print("Failed to create user document: \(error)")
+                errorPointer?.pointee = error as NSError
+                return nil
             }
-            
-            await loadUserData() // Now safe to load
         }
-    
+    }
+
     func signInAnonymously() async throws {
-            if Auth.auth().currentUser != nil { return }
-            
-            let result = try await Auth.auth().signInAnonymously()
-            await MainActor.run {
-                self.currentUser = result.user
-                self.isLoggedIn = true
-                self.uid = result.user.uid
-            }
-            
-            // This will create the doc if missing
-            await ensureUserDocumentExists()
+        if let signInTask { return try await signInTask.value }
+        if isLoggedIn, Auth.auth().currentUser?.uid == uid { return }
+        let task = Task { @MainActor in
+            let user: User
+            if let existing = Auth.auth().currentUser { user = existing }
+            else { user = try await Auth.auth().signInAnonymously().user }
+            // Do not expose gameplay until the starting balance exists.
+            try await ensureUserDocumentExists(for: user.uid)
+            currentUser = user
+            uid = user.uid
+            await loadUserData()
+            isLoggedIn = true
         }
-    
+        signInTask = task
+        defer { signInTask = nil }
+        try await task.value
+    }
+
     @MainActor
     func refreshCoins() async {
         guard !uid.isEmpty, uid != "guest" else { return }
@@ -105,12 +100,13 @@ final class UserViewModel: ObservableObject {
     private func startAuthListener() {
         listener = Auth.auth().addStateDidChangeListener { [weak self] _, user in
             Task { @MainActor in
-                self?.currentUser = user
-                self?.isLoggedIn = user != nil
-                self?.uid = user?.uid ?? "guest"
                 if user != nil {
-                    await self?.loadUserData()
+                    try? await self?.signInAnonymously()
                 } else {
+                    self?.currentUser = nil
+                    self?.isLoggedIn = false
+                    self?.uid = "guest"
+                    self?.hasTimerChallengeProgress = false
                     self?.dailyChallengeStreak = 0
                     self?.dailyChallengeLastSolved = nil
                     self?.timerChallengeStreak = 0
@@ -162,28 +158,13 @@ final class UserViewModel: ObservableObject {
             }
         }
     
-    func updateTimerChallengeStreak(completedToday: Bool) async {
-            guard !uid.isEmpty, uid != "guest" else { return }
-
-            let today = Calendar.current.startOfDay(for: Date())
-            let docRef = db.collection("users").document(uid)
-
-            if completedToday {
-                let newStreak = timerChallengeStreak + 1
-                do {
-                    try await docRef.setData([
-                        "timerChallengeStreak": newStreak,
-                        "timerChallengeLastSolved": Timestamp(date: today)
-                    ], merge: true)
-                    timerChallengeStreak = newStreak
-                    timerChallengeLastSolved = today
-                } catch {
-                    print("Error updating timer challenge streak: \(error)")
-                }
-            } else {
-                await resetTimerChallengeStreakIfNeeded()
-            }
+    func updateTimerChallengeStreak(completedToday: Bool, date: Date = Date()) async {
+        if completedToday {
+            await recordChallengeSolve(streakField: "timerChallengeStreak", dateField: "timerChallengeLastSolved", date: date)
+        } else {
+            await resetTimerChallengeStreakIfNeeded()
         }
+    }
   
     
     func resetTimerChallengeStreakIfNeeded() async {
@@ -202,41 +183,53 @@ final class UserViewModel: ObservableObject {
             return
         }
 
-        // Otherwise → missed a day → reset streak
-        do {
-            try await db.collection("users").document(uid).updateData([
-                "timerChallengeStreak": 0,
-                "timerChallengeLastSolved": FieldValue.delete()
-            ])
-            timerChallengeStreak = 0
-            timerChallengeLastSolved = nil
-        } catch {
-            print("Error resetting timer challenge streak: \(error)")
+        // Expiry is a display calculation. A stale read must not erase a newer server win.
+        timerChallengeStreak = 0
+    }
+
+    func updateStreak(completedToday: Bool, date: Date = Date()) async {
+        if completedToday {
+            await recordChallengeSolve(streakField: "dailyChallengeStreak", dateField: "dailyChallengeLastSolved", date: date)
+        } else {
+            await resetStreakIfNeeded()
         }
     }
 
-        func updateStreak(completedToday: Bool) async {
-            guard !uid.isEmpty, uid != "guest" else { return }
-
-            let today = Calendar.current.startOfDay(for: Date())
-            let docRef = db.collection("users").document(uid)
-
-            if completedToday {
-                let newStreak = dailyChallengeStreak + 1
+    private func recordChallengeSolve(streakField: String, dateField: String, date: Date) async {
+        guard !uid.isEmpty, uid != "guest" else { return }
+        let now = date
+        let userRef = db.collection("users").document(uid)
+        do {
+            let result = try await db.runTransaction { transaction, errorPointer -> Any? in
                 do {
-                    try await docRef.setData([
-                        "dailyChallengeStreak": newStreak,
-                        "dailyChallengeLastSolved": Timestamp(date: today)
-                    ], merge: true)
-                    dailyChallengeStreak = newStreak
-                    dailyChallengeLastSolved = today
+                    let data = try transaction.getDocument(userRef).data() ?? [:]
+                    if let last = (data[dateField] as? Timestamp)?.dateValue(),
+                       GameRules.utcCalendar.startOfDay(for: last) > GameRules.utcCalendar.startOfDay(for: now) {
+                        return nil // A late completion must not move a newer streak backward.
+                    }
+                    let next = GameRules.streakAfterSolve(
+                        current: data[streakField] as? Int ?? 0,
+                        lastSolved: (data[dateField] as? Timestamp)?.dateValue(), now: now)
+                    transaction.setData([streakField: next, dateField: Timestamp(date: now)],
+                                        forDocument: userRef, merge: true)
+                    return next
                 } catch {
-                    print("Error updating streak: \(error)")
+                    errorPointer?.pointee = error as NSError
+                    return nil
                 }
-            } else {
-                await resetStreakIfNeeded()
             }
+            guard let next = result as? Int else { return }
+            if streakField == "dailyChallengeStreak" {
+                dailyChallengeStreak = next
+                dailyChallengeLastSolved = now
+            } else {
+                timerChallengeStreak = next
+                timerChallengeLastSolved = now
+            }
+        } catch {
+            print("Error recording challenge streak: \(error)")
         }
+    }
 
     private func resetStreakIfNeeded() async {
         guard let lastSolved = dailyChallengeLastSolved else {
@@ -254,20 +247,9 @@ final class UserViewModel: ObservableObject {
             return
         }
 
-        // Missed a day → reset
-        do {
-            try await db.collection("users").document(uid).updateData([
-                "dailyChallengeStreak": 0,
-                "dailyChallengeLastSolved": FieldValue.delete()
-            ])
-            dailyChallengeStreak = 0
-            dailyChallengeLastSolved = nil
-        } catch {
-            print("Error resetting daily streak: \(error)")
-        }
+        dailyChallengeStreak = 0
     }
-    
-    
+
     // NEW: Save preferred filter
     func savePreferredFilter(_ filter: String) async {
         guard !uid.isEmpty, uid != "guest" else { return }
@@ -305,6 +287,7 @@ final class UserViewModel: ObservableObject {
                 }
 
                 await refreshCoins()
+                hasTimerChallengeProgress = false
                 print("UserViewModel: Game reset - coins set to 300, riddleProgress and timerDailyChallengeProgress cleared")
             } catch {
                 print("UserViewModel: Error resetting game: \(error)")
@@ -340,7 +323,7 @@ extension Date {
     
     /// Returns true if this date is yesterday in UTC (used for streak logic)
     var isYesterdayUTC: Bool {
-        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date())!
+        let yesterday = GameRules.utcCalendar.date(byAdding: .day, value: -1, to: Date())!
         return self.utcDayString == yesterday.utcDayString
     }
 }

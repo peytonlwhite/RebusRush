@@ -184,7 +184,7 @@ struct IntroView: View {
                 }
             }
         } message: {
-            Text("This will reset your coins to 300 and clear all riddle progress. Your daily challenge streak will not be affected. Continue?")
+            Text("This will reset your coins to 300 and clear regular puzzle and timer challenge progress. Your daily challenge progress and streaks will be kept. Continue?")
         }
         .navigationDestination(for: String.self) { view in
             if view == "riddle" {
@@ -286,6 +286,7 @@ struct IntroView: View {
         }
 
         guard loaded else {
+                viewModel.resumeTimer()
                 print("⚠️ Rewarded ad failed to load")
                 // New: Show user feedback
                 await MainActor.run {
@@ -440,7 +441,7 @@ private struct ContentStack: View {
 
     private var isDailyChallengeSolved: Bool {
         guard let lastSolved = userVM.dailyChallengeLastSolved else { return false }
-        return Calendar.current.isDate(lastSolved, inSameDayAs: Date())
+        return lastSolved.isTodayUTC
     }
 }
 
@@ -595,6 +596,9 @@ private struct TimerChallengeButton: View {
         .onAppear {
             Task { await fetchProgressData() }
         }
+        .onChange(of: isPlayed) {
+            Task { await fetchProgressData() }
+        }
     }
 
     // MARK: - Badge View (Identical Style)
@@ -627,30 +631,28 @@ private struct TimerChallengeButton: View {
 
     // MARK: - Computed Vars (unchanged)
     private var buttonText: String {
-        if isFullySolved { "Already Played" }
-        if isPlayed { "Resume" }
+        if isFullySolved || isExpired { return "Already Played" }
+        if isPlayed { return "Resume" }
         return "Timer Challenge"
     }
 
     private var canTap: Bool {
-        if isPlayed,
-           let data = progressData,
-           data["completed"] as? Bool != true,
-           let timeRemaining = data["timeRemaining"] as? Int,
-           timeRemaining > 0 {
-            return true
-        }
-        return !isPlayed
+        // Unknown progress must remain tappable so the challenge can retry loading.
+        return !isFullySolved && !isExpired
+    }
+
+    private var isExpired: Bool {
+        guard let data = progressData, !isFullySolved else { return false }
+        return GameRules.timerRemainingSeconds(data) == 0
     }
 
     private var isFullySolved: Bool {
         if let data = progressData {
             let isCompleted = data["completed"] as? Bool == true
-            let timeRemaining = data["timeRemaining"] as? Int ?? 0
             let allSolved = (data["riddleOneCorrect"] as? Bool ?? false)
                          && (data["riddleTwoCorrect"] as? Bool ?? false)
                          && (data["riddleThreeCorrect"] as? Bool ?? false)
-            return isCompleted || timeRemaining <= 0 || allSolved
+            return isCompleted || allSolved
         }
         return false
     }

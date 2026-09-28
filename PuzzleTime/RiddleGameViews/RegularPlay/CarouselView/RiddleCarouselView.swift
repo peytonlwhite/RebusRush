@@ -55,7 +55,8 @@ struct RiddleCarouselView: View {
                 HowToPlayView()
             }
             .onChange(of: vm.selectedIndex) { newIndex in
-                guard newIndex < vm.carouselItems.count else { return }
+                guard vm.carouselItems.indices.contains(newIndex) else { return }
+                if !vm.isLoading { vm.resetForNewRiddle() }
                 vm.isTransitioning = true
 
                 let currentItem = vm.carouselItems[newIndex]
@@ -154,6 +155,7 @@ struct CarouselTabView: View {
                             isAdLoading: $vm.isAdLoading,
                             lastAnsweredRiddleId: $vm.lastAnsweredRiddleId
                         )
+                        .id(riddle.uiId)
                     case .ad(let nativeAd):
                         GADNativeAdViewRepresentable(nativeAd: nativeAd)
                             .frame(height: 600)
@@ -171,6 +173,7 @@ struct CarouselTabView: View {
             }
         }
         .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
+        .disabled(vm.isLoading || vm.isAdLoading)
     }
 }
 

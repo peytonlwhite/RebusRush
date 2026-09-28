@@ -19,6 +19,8 @@ struct HintSection: View {
     @State private var showHintConfirmation: Bool = false
     @State private var showAdConfirmation: Bool = false
     @State private var pendingHintIndex: Int = 0
+    @State private var isPurchasingHint = false
+    @State private var earnedHintReward = false
     @State private var errorMessage: String?
     @Binding var isTransitioning: Bool
     let isDailyMode: Bool
@@ -40,9 +42,9 @@ struct HintSection: View {
             }
 
             HStack(spacing: 16) {
-                ForEach(0..<3) { i in
+                ForEach(0..<min(3, hints.count), id: \.self) { i in
                     hintButton(for: i)
-                        .disabled(isTransitioning || isAdLoading)
+                        .disabled(isTransitioning || isAdLoading || isPurchasingHint)
                         .opacity(isTransitioning || isAdLoading ? 0.6 : 1)
                 }
             }
@@ -59,7 +61,11 @@ struct HintSection: View {
         .alert("Use Hint?", isPresented: $showHintConfirmation) {
             Button("Cancel", role: .cancel) { }
             Button("Use 50 Coins") {
+                guard !isPurchasingHint else { return }
+                isPurchasingHint = true
+                let hintDate = isTimerChallenge ? viewModel.timerChallengeDate : viewModel.dailyChallengeDate
                 Task {
+                    defer { isPurchasingHint = false }
                     // Ensure sufficient coins
                     guard userVM.coins >= 50 else {
                         withAnimation {
@@ -80,8 +86,8 @@ struct HintSection: View {
                         isDaily: isDailyMode,
                         isTimerChallenge: isTimerChallenge,
                         coinsDeducted: 50,
-                        currentHintIndices: Array(showingHintIndices),
-                        riddleIndex: riddleIndex
+                        riddleIndex: riddleIndex,
+                        date: hintDate
                     )
 
                     if success {
@@ -114,9 +120,11 @@ struct HintSection: View {
         .alert("Not Enough Coins!", isPresented: $showAdConfirmation) {
             Button("Cancel", role: .cancel) { }
             Button("Watch Ad") {
-                requestATTIfNeeded()
+                earnedHintReward = false
+                let hintDate = isTimerChallenge ? viewModel.timerChallengeDate : viewModel.dailyChallengeDate
                 Task {
                     isAdLoading = true
+                    await requestATTIfNeeded()
                     // Only hide spinner when ad actually finishes (success or dismiss)
                     let loaded = await rewardedVM.loadRewardedAd()
                     
@@ -133,6 +141,7 @@ struct HintSection: View {
                     
                     if loaded {
                         rewardedVM.showAd { _ in
+                            earnedHintReward = true
                             Task {
                                 // Attempt to purchase hint (no coins deducted)
                                 let success = await viewModel.purchaseHint(
@@ -142,8 +151,8 @@ struct HintSection: View {
                                     isDaily: isDailyMode,
                                     isTimerChallenge: isTimerChallenge,
                                     coinsDeducted: 0,
-                                    currentHintIndices: Array(showingHintIndices),
-                                    riddleIndex: riddleIndex
+                                    riddleIndex: riddleIndex,
+                                    date: hintDate
                                 )
                                 
                                 // *** CLEANUP AFTER SUCCESSFUL AD PRESENTATION/REWARD ***
@@ -181,7 +190,9 @@ struct HintSection: View {
                             withAnimation {
                                 // ... (your existing onDismiss logic)
                                 hintCoinPop = 0
-                                errorMessage = "Watch the full ad to unlock the hint."
+                                if !earnedHintReward {
+                                    errorMessage = "Watch the full ad to unlock the hint."
+                                }
                             }
                             DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
                                 errorMessage = nil
@@ -204,11 +215,9 @@ struct HintSection: View {
         }
     }
     
-    private func requestATTIfNeeded() {
-        Task {
-            if ATTrackingManager.trackingAuthorizationStatus == .notDetermined {
-                try? await ATTStatusManager.shared.requestAuthorization()
-            }
+    private func requestATTIfNeeded() async {
+        if ATTrackingManager.trackingAuthorizationStatus == .notDetermined {
+            try? await ATTStatusManager.shared.requestAuthorization()
         }
     }
     

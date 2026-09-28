@@ -23,7 +23,8 @@ struct ResultDisplay: View {
     var body: some View {
         if shouldShowResult {
             VStack(spacing: 16) {
-                Text(result == "correct" ? "CORRECT!" : "Not Quite")
+                Text(result == "error" ? "Couldn't check your answer. Please try again." :
+                     (result == "correct" ? "CORRECT!" : "Not Quite"))
                     .font(.title.bold())
                     .foregroundColor(result == "correct" ? successColor : failureColor)
                     .scaleEffect(result == "correct" ? 1.15 : 1.0)

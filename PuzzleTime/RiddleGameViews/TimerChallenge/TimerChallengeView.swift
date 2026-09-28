@@ -6,6 +6,12 @@ struct TimerChallengeView: View {
     @ObservedObject var viewModel: RiddleViewModel
     @EnvironmentObject var userVM: UserViewModel
     @Environment(\.dismiss) var dismiss
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var isViewActive = false
+    @State private var startError: String?
+    @State private var loadError: String?
+    @State private var saveError: String?
+    @State private var challengeDate = Date()
     @State private var currentRiddleIndex: Int = 0
     @State private var timerSeconds: Int = 180
     @State private var isTimerRunning: Bool = false
@@ -42,12 +48,43 @@ struct TimerChallengeView: View {
                 
                 PandaBehindImage(pandaPeek: .constant(1), isWaving: $pandaWave)
                 
-                if viewModel.timerRiddles.isEmpty || isLoadingProgress { // CHANGED: Hide start screen until fully loaded
+                if isLoadingProgress {
                     ProgressView("Loading timer riddles...")
                         .progressViewStyle(.circular)
                         .scaleEffect(1.5)
+                } else if loadError != nil || viewModel.timerRiddles.count != 3 {
+                    VStack(spacing: 16) {
+                        Text(loadError ?? "Couldn't load today's three puzzles.")
+                        Button("Retry") {
+                            Task {
+                                isLoadingProgress = true
+                                await loadSavedProgress()
+                                isLoadingProgress = false
+                            }
+                        }
+                    }
                 } else {
                     VStack(spacing: 0) {
+                        if let saveError {
+                            VStack(spacing: 8) {
+                                Text(saveError).multilineTextAlignment(.center)
+                                Button("Retry Save") {
+                                    Task {
+                                        isSaving = true
+                                        let complete = riddleResults.count == 3 && riddleResults.values.allSatisfy { $0 }
+                                        let saved = await saveProgress(completed: complete)
+                                        isSaving = false
+                                        if saved {
+                                            if complete { showGameRecap = true }
+                                            else if timerSeconds == 0 { showGameOver = true }
+                                            else { startTicker() }
+                                        }
+                                    }
+                                }
+                                .disabled(isSaving)
+                            }
+                            .padding()
+                        }
                         // Header with coins and timer
                         HStack {
                             Image(systemName: "dollarsign.circle.fill")
@@ -103,19 +140,32 @@ struct TimerChallengeView: View {
             .navigationTitle("Timer Challenge")
             .navigationBarTitleDisplayMode(.inline)
             .onAppear {
+                isViewActive = true
+                viewModel.timerChallengeDate = challengeDate
                 Task { @MainActor in
                     print("onAppear: Loading timer riddles and progress") // Debug log
-                    await viewModel.loadTimerDailyRiddles()
                     await loadSavedProgress()
                     isLoadingProgress = false // NEW: Set after all awaits complete
                 }
             }
             .onDisappear {
-                if isTimerRunning && !showGameRecap && !showGameOver && !isSaving {
-                    timer?.invalidate()
+                isViewActive = false
+                timer?.invalidate()
+                isTimerRunning = false
+                if hasSavedProgress && !showGameRecap && !showGameOver && !isSaving && !isLoading.values.contains(true) {
                     Task { @MainActor in
                         isSaving = true
                         print("onDisappear: Saving progress") // Debug log
+                        await saveProgress(completed: false)
+                        isSaving = false
+                    }
+                }
+            }
+            .onChange(of: scenePhase) { phase in
+                if phase == .background, hasSavedProgress, !isSaving,
+                   !isLoading.values.contains(true), !showGameRecap, !showGameOver {
+                    Task {
+                        isSaving = true
                         await saveProgress(completed: false)
                         isSaving = false
                     }
@@ -162,30 +212,10 @@ struct TimerChallengeView: View {
                     print("Pausing timer due to external pause (e.g., ad)")
                     timer?.invalidate()
                     isTimerRunning = false
-                } else if !isPaused && !isTimerRunning && timerSeconds > 0 && !riddleResults.values.allSatisfy({ $0 }) {
+                } else if !isPaused && isViewActive && hasSavedProgress && !isLoading.values.contains(true) && !isTimerRunning && timerSeconds > 0 && !riddleResults.values.allSatisfy({ $0 }) {
                     print("Resuming timer due to external resume")
                     isTimerRunning = true
-                    timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
-                        Task { @MainActor in
-                            if timerSeconds > 0 {
-                                timerSeconds -= 1
-                                if timerSeconds % 5 == 0 && !isSaving {
-                                    isSaving = true
-                                    print("Periodic save at \(timerSeconds) seconds, riddleResults = \(riddleResults)")
-                                    await saveProgress(completed: false)
-                                    isSaving = false
-                                }
-                            } else {
-                                timer?.invalidate()
-                                isTimerRunning = false
-                                isSaving = true
-                                print("Time out save, riddleResults = \(riddleResults)")
-                                await saveProgress(completed: false)
-                                isSaving = false
-                                showGameOver = true
-                            }
-                        }
-                    }
+                    startTicker()
                 }
             }
         }
@@ -200,6 +230,9 @@ struct TimerChallengeView: View {
             Text("Solve 3 riddles in 3 minutes! 🏅")
                 .font(.title3)
                 .foregroundColor(.white)
+            if let startError {
+                Text(startError).foregroundColor(.orange).multilineTextAlignment(.center)
+            }
             Button(action: { Task { await startChallenge() } }) {
                 Text("Start")
                     .font(.system(size: 28, weight: .bold, design: .rounded))
@@ -213,6 +246,7 @@ struct TimerChallengeView: View {
                     )
             }
             .padding(.horizontal, 40)
+            .disabled(isSaving)
             Spacer()
         }
     }
@@ -293,83 +327,64 @@ struct TimerChallengeView: View {
     }
     
     @MainActor
-    private func startChallenge() async {
-        guard userVM.isLoggedIn else {
-            print("startChallenge: User not logged in")
-            return
-        }
-        // Prevent starting a new timer if one is already running
-        guard !isTimerRunning else {
-            print("startChallenge: Timer already running, skipping")
+    private func startTicker() {
+        timer?.invalidate()
+        guard isViewActive, saveError == nil, timerSeconds > 0, viewModel.timerRiddles.count == 3 else {
+            isTimerRunning = false
             return
         }
         isTimerRunning = true
-        timer?.invalidate() // Ensure no stale timers
+        startError = nil
         timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
             Task { @MainActor in
-                if timerSeconds > 0 && !viewModel.isTimerPaused {
-                    timerSeconds -= 1
-                    if timerSeconds % 5 == 0 && !isSaving {
-                        isSaving = true
-                        print("Periodic save at \(timerSeconds) seconds, riddleResults = \(riddleResults)")
-                        await saveProgress(completed: false)
-                        isSaving = false
-                    }
-                } else if timerSeconds <= 0 {
+                guard isViewActive, scenePhase == .active, !isAdLoading,
+                      !viewModel.isTimerPaused, !isLoading.values.contains(true),
+                      !isSaving else { return }
+                timerSeconds = max(0, timerSeconds - 1)
+                if timerSeconds == 0 {
                     timer?.invalidate()
                     isTimerRunning = false
                     isSaving = true
-                    print("Time out save, riddleResults = \(riddleResults)")
+                    let saved = await saveProgress(completed: false)
+                    isSaving = false
+                    if saved { showGameOver = true }
+                } else if timerSeconds % 5 == 0 {
+                    isSaving = true
                     await saveProgress(completed: false)
                     isSaving = false
-                    showGameOver = true
                 }
             }
         }
-      
-        
-        let todayStr = Date.utcDayString
-        
-        // Load timer challenge progress from RiddleViewModel
-        await viewModel.loadTimerChallengeProgress(for: userVM.uid)
-        let hasProgress = !viewModel.timerProgressCache.isEmpty || userVM.hasTimerChallengeProgress
-        if !hasProgress && !hasSavedProgress {
-            isSaving = true
-            print("Initial save for new challenge, riddleResults = \(riddleResults)")
-            await viewModel.saveTimerChallengeProgress(
-                userId: userVM.uid,
-                date: Date(),
-                played: true,
-                completed: false,
-                timeRemaining: timerSeconds,
-                timeTakenSeconds: 0,
-                riddleResults: [:],
-                hintsUsed: [:],
-                revealedHintIndices: [:],
-                attempts: [:]
-            )
-            // Update hasTimerChallengeProgress in UserViewModel
-            do {
-                try await Firestore.firestore().collection("users").document(userVM.uid).setData(
-                    ["hasTimerChallengeProgress": true],
-                    merge: true
-                )
-                userVM.hasTimerChallengeProgress = true
-                print("startChallenge: Set hasTimerChallengeProgress to true")
-            } catch {
-                print("startChallenge: Failed to update hasTimerChallengeProgress: \(error)")
-            }
-            hasSavedProgress = true
-            isSaving = false
-        } else {
-            print("startChallenge: Progress already exists, skipping initial save")
-        }
     }
-    
+
+    @MainActor
+    private func startChallenge() async {
+        guard userVM.isLoggedIn, isViewActive, !isSaving, !isTimerRunning,
+              loadError == nil, viewModel.timerRiddles.count == 3 else { return }
+        if hasSavedProgress { startTicker(); return }
+        isSaving = true
+        startError = nil
+        defer { isSaving = false }
+        let saved = await viewModel.saveTimerChallengeProgress(
+            userId: userVM.uid, date: challengeDate, played: true, completed: false,
+            timeRemaining: totalTime, timeTakenSeconds: 0,
+            riddleResults: [:], hintsUsed: [:], revealedHintIndices: [:], attempts: [:])
+        guard saved != nil else {
+            startError = "Couldn't save the challenge. Check your connection and tap Start to retry."
+            return
+        }
+        userVM.hasTimerChallengeProgress = true
+        hasSavedProgress = true
+        if let data = viewModel.timerSavedData { restoreState(from: data) }
+        if !showGameRecap && !showGameOver { startTicker() }
+    }
+
     @MainActor
     private func submit(riddle: Riddle, index: Int, usedHints: Int) async {
         let input = (userAnswers[index] ?? "").trimmingCharacters(in: .whitespaces).lowercased()
-        guard !input.isEmpty else {
+        guard !input.isEmpty, isViewActive, saveError == nil, timerSeconds > 0,
+              !isSaving, !isLoading.values.contains(true),
+              riddleResults[index] != true else {
             print("submit: Empty input, returning")
             return
         }
@@ -377,10 +392,10 @@ struct TimerChallengeView: View {
         timer?.invalidate()
         isTimerRunning = false
         isLoading[index] = true
+        defer { isLoading[index] = false }
         results[index] = ""
         lastAnsweredRiddleId = "nil"  // ← Reset
 
-        let db = Firestore.firestore()
         do {
             let verdict = try await evaluator.evaluate(userAnswer: input, riddle: riddle)
             let isCorrect = verdict == "correct"
@@ -388,29 +403,17 @@ struct TimerChallengeView: View {
 
             let newAttempts = (attempts[index] ?? 0) + 1
             riddleResults[index] = isCorrect
-            hintsUsed[index] = usedHints
+            let purchasedHints = viewModel.timerProgressCache[riddle.uiId]?.revealedHintIndices ?? []
+            let hintCount = max(usedHints, purchasedHints.count)
+            hintsUsed[index] = hintCount
             attempts[index] = newAttempts
-            let coinsEarned = isCorrect ? max(0, 50 - usedHints * 10) : 0
             results[index] = verdict
-            if isCorrect {
-                pandaWave = true
-                confettiTrigger += 1
-                withAnimation(.spring()) {
-                    coinPop = coinsEarned
-                }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
-                    pandaWave = false
-                    coinPop = 0
-                }
-                userAnswers[index] = ""
-            }
-            isLoading[index] = false
             // Save progress to Firestore
             isSaving = true
             print("Saving progress after submission for riddle \(index), riddleResults = \(riddleResults)")
-            await viewModel.saveTimerChallengeProgress(
+            let awardedCoins = await viewModel.saveTimerChallengeProgress(
                 userId: userVM.uid,
-                date: Date(),
+                date: challengeDate,
                 played: true,
                 completed: riddleResults.count == viewModel.timerRiddles.count && riddleResults.values.allSatisfy({ $0 }),
                 timeRemaining: timerSeconds > 0 ? timerSeconds : nil,
@@ -418,39 +421,32 @@ struct TimerChallengeView: View {
                 riddleResults: riddleResults,
                 hintsUsed: hintsUsed,
                 revealedHintIndices: Dictionary(uniqueKeysWithValues: viewModel.timerRiddles.indices.map { ($0, Array(showingHintIndices[$0] ?? [])) }),
-                attempts: attempts
+                attempts: attempts,
+                rewardForRiddleIndex: index
             )
             isSaving = false
-            if isCorrect && coinsEarned > 0 {
-                try await db.collection("users").document(userVM.uid).updateData(["coins": FieldValue.increment(Int64(coinsEarned))])
-                await userVM.refreshCoins()
+            guard let awardedCoins else {
+                throw NSError(domain: "RebusRush", code: 1,
+                              userInfo: [NSLocalizedDescriptionKey: "Couldn't save your answer. Please try again."])
+            }
+            await userVM.refreshCoins()
+            if let data = viewModel.timerSavedData { restoreState(from: data) }
+            if isCorrect && riddleResults[index] == true {
+                pandaWave = true
+                confettiTrigger += 1
+                withAnimation(.spring()) { coinPop = awardedCoins }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+                    pandaWave = false
+                    coinPop = 0
+                }
+                userAnswers[index] = ""
             }
             // Resume timer if game is not over
             let isGameCompleted = riddleResults.count == viewModel.timerRiddles.count && riddleResults.values.allSatisfy({ $0 })
-            if !isGameCompleted && timerSeconds > 0 {
+            if !isGameCompleted && timerSeconds > 0 && isViewActive {
                 print("Resuming timer after submission, timeRemaining = \(timerSeconds)")
                 isTimerRunning = true
-                timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
-                    Task { @MainActor in
-                        if timerSeconds > 0 {
-                            timerSeconds -= 1
-                            if timerSeconds % 5 == 0 && !isSaving {
-                                isSaving = true
-                                print("Periodic save at \(timerSeconds) seconds, riddleResults = \(riddleResults)")
-                                await saveProgress(completed: false)
-                                isSaving = false
-                            }
-                        } else {
-                            timer?.invalidate()
-                            isTimerRunning = false
-                            isSaving = true
-                            print("Time out save, riddleResults = \(riddleResults)")
-                            await saveProgress(completed: false)
-                            isSaving = false
-                            showGameOver = true
-                        }
-                    }
-                }
+                startTicker()
             }
             // Check if all riddles are solved
             if isGameCompleted {
@@ -458,59 +454,37 @@ struct TimerChallengeView: View {
                 isTimerRunning = false
                 isSaving = true
                 print("Game completed save, riddleResults = \(riddleResults)")
-                await saveProgress(completed: true)
+                let saved = await saveProgress(completed: true)
                 isSaving = false
-                showGameRecap = true
+                if saved { showGameRecap = true }
+            } else if timerSeconds == 0 {
+                showGameOver = true
             }
-            // Update timerProgressCache
-            viewModel.timerProgressCache[riddle.uiId] = TimerChallengeProgress(
-                riddleId: riddle.uiId,
-                isCorrect: isCorrect,
-                attempts: newAttempts,
-                usedHints: usedHints,
-                lastSeen: Date(),
-                revealedHintIndices: Array(showingHintIndices[index] ?? [])
-            )
         } catch {
+            let saved = viewModel.timerProgressCache[riddle.uiId]
+            riddleResults[index] = saved?.isCorrect ?? false
+            attempts[index] = saved?.attempts ?? 0
+            isSaving = false
             results[index] = "error"
-            isLoading[index] = false
+            lastAnsweredRiddleId = riddle.uiId
             // Resume timer if game is not over
-            if timerSeconds > 0 {
+            if timerSeconds > 0 && isViewActive {
                 print("Resuming timer after error, timeRemaining = \(timerSeconds)")
                 isTimerRunning = true
-                timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
-                    Task { @MainActor in
-                        if timerSeconds > 0 {
-                            timerSeconds -= 1
-                            if timerSeconds % 5 == 0 && !isSaving {
-                                isSaving = true
-                                print("Periodic save at \(timerSeconds) seconds, riddleResults = \(riddleResults)")
-                                await saveProgress(completed: false)
-                                isSaving = false
-                            }
-                        } else {
-                            timer?.invalidate()
-                            isTimerRunning = false
-                            isSaving = true
-                            print("Time out save, riddleResults = \(riddleResults)")
-                            await saveProgress(completed: false)
-                            isSaving = false
-                            showGameOver = true
-                        }
-                    }
-                }
+                startTicker()
             }
             print("Evaluation failed: \(error)")
         }
     }
     
     @MainActor
-    private func saveProgress(completed: Bool) async {
+    @discardableResult
+    private func saveProgress(completed: Bool) async -> Bool {
         let medal = completed ? determineMedal() : nil
         print("Saving progress: riddleResults = \(riddleResults), completed = \(completed), timeRemaining = \(timerSeconds)") // Debug log
-        await viewModel.saveTimerChallengeProgress(
+        let saved = await viewModel.saveTimerChallengeProgress(
             userId: userVM.uid,
-            date: Date(),
+            date: challengeDate,
             played: true,
             completed: completed,
             timeRemaining: completed || timerSeconds <= 0 ? nil : timerSeconds,
@@ -520,12 +494,21 @@ struct TimerChallengeView: View {
             revealedHintIndices: Dictionary(uniqueKeysWithValues: viewModel.timerRiddles.indices.map { ($0, Array(showingHintIndices[$0] ?? [])) }),
             attempts: attempts
         )
+        guard saved != nil else {
+            timer?.invalidate()
+            isTimerRunning = false
+            saveError = "Your progress couldn't be saved. The timer is paused. Check your connection and retry."
+            return false
+        }
+        saveError = nil
+        if let data = viewModel.timerSavedData { restoreState(from: data) }
         // Optionally update Firestore with medal if completed
         if completed, let medal = medal {
+            await userVM.updateTimerChallengeStreak(completedToday: true, date: challengeDate)
             let formatter = DateFormatter()
             formatter.dateFormat = "yyyy-MM-dd"
             formatter.timeZone = TimeZone(secondsFromGMT: 0)
-            let dateStr = formatter.string(from: Date())
+            let dateStr = formatter.string(from: challengeDate)
             let progressRef = Firestore.firestore().collection("users").document(userVM.uid).collection("timerDailyChallengeProgress").document(dateStr)
             do {
                 try await progressRef.setData(["medal": medal], merge: true)
@@ -534,85 +517,68 @@ struct TimerChallengeView: View {
                 print("Failed to save medal: \(error)")
             }
         }
+        return true
     }
     
     @MainActor
     private func loadSavedProgress() async {
-       
-        let todayStr = Date.utcDayString
-        // Ensure timerRiddles are loaded
-        if viewModel.timerRiddles.isEmpty {
-            print("loadSavedProgress: Loading timer riddles")
-            await viewModel.loadTimerDailyRiddles()
-        }
-        // Fetch timer progress from RiddleViewModel
-        print("loadSavedProgress: Loading timer challenge progress")
-        await viewModel.loadTimerChallengeProgress(for: userVM.uid)
-        
-        if viewModel.timerRiddles.isEmpty {
-            print("loadSavedProgress: Setting ultimate fallback timer riddles")
-            viewModel.timerRiddles = Array(viewModel.riddles.prefix(3))
-        }
-        
-        // Check if progress exists
-        let hasProgress = !viewModel.timerProgressCache.isEmpty
-        hasSavedProgress = hasProgress // CHANGED: Set explicitly here
-        guard hasProgress else {
-            print("loadSavedProgress: No progress found for today: \(todayStr)")
-            timerSeconds = totalTime // NEW: Explicit for new challenges
-            return // CHANGED: Don't auto-start for new; wait for user click
-        }
-        print("loadSavedProgress: Found progress in timerProgressCache: \(viewModel.timerProgressCache)")
-        // Load time remaining from Firestore directly (since timerProgressCache doesn't store it)
-        let progressRef = Firestore.firestore().collection("users").document(userVM.uid).collection("timerDailyChallengeProgress").document(todayStr)
-        let doc = try? await progressRef.getDocument()
-        let savedTime = doc?.data()?["timeRemaining"] as? Int
-        timerSeconds = hasProgress ? (savedTime ?? 0) : totalTime // CHANGED: Handle nil as 0 if progress exists (timeout/complete)
-        print("loadSavedProgress: Loaded timeRemaining: \(timerSeconds)")
-        // Clear state to avoid stale data
-        riddleResults.removeAll()
-        hintsUsed.removeAll()
-        attempts.removeAll()
-        revealedHints.removeAll()
-        showingHintIndices.removeAll()
-        // Map progress to state variables
-        for (index, riddle) in viewModel.timerRiddles.enumerated() {
-            let riddleId = riddle.uiId
-            guard let progress = viewModel.timerProgressCache[riddleId] else {
-                riddleResults[index] = false // NEW: Explicitly set unsolved to false
-                continue
+        isLoadingProgress = true
+        loadError = nil
+        defer { isLoadingProgress = false }
+        do {
+            let data = try await viewModel.loadTimerChallengeProgress(for: userVM.uid, date: challengeDate)
+            guard isViewActive else { return }
+            userAnswers.removeAll()
+            results.removeAll()
+            riddleResults.removeAll()
+            hintsUsed.removeAll()
+            attempts.removeAll()
+            showingHintIndices.removeAll()
+            hasSavedProgress = data != nil
+            if let data {
+                restoreState(from: data)
+                if data["completed"] as? Bool == true {
+                    showGameRecap = true
+                } else if timerSeconds == 0 {
+                    showGameOver = true
+                } else {
+                    startTicker()
+                }
+            } else {
+                await viewModel.loadTimerDailyRiddles(date: challengeDate)
+                if viewModel.timerRiddles.isEmpty {
+                    viewModel.timerRiddles = Array(viewModel.riddles.prefix(3))
+                }
+                timerSeconds = totalTime
             }
-            riddleResults[index] = progress.isCorrect
-            hintsUsed[index] = progress.usedHints
-            attempts[index] = progress.attempts
-            revealedHints[index] = progress.revealedHintIndices.count
-            showingHintIndices[index] = Set(progress.revealedHintIndices)
-            // Reset UI for unsolved riddles
-            if !progress.isCorrect {
-                userAnswers[index] = ""
-                results[index] = ""
-                isLoading[index] = false
-            }
-            print("loadSavedProgress: Loaded riddle \(index): isCorrect = \(progress.isCorrect), hintsUsed = \(progress.usedHints), attempts = \(progress.attempts)")
-        }
-        // Handle game state
-        let isCompleted = doc?.data()?["completed"] as? Bool == true
-        if isCompleted {
+        } catch {
             timer?.invalidate()
             isTimerRunning = false
-            showGameRecap = true
-            print("loadSavedProgress: Game is completed, showing recap")
-        } else if timerSeconds <= 0 {
-            timer?.invalidate()
-            isTimerRunning = false
-            showGameOver = true
-            print("loadSavedProgress: Time is up, showing game over")
-        } else if !isTimerRunning {
-            print("loadSavedProgress: Resuming challenge")
-            await startChallenge() // CHANGED: Only resume if existing progress
+            loadError = "Couldn't restore your challenge. Check your connection and retry. Your saved game hasn't been replaced."
         }
     }
-    
+
+    private func restoreState(from data: [String: Any]) {
+        timerSeconds = GameRules.timerRemainingSeconds(data) ?? timerSeconds
+        for (index, riddle) in viewModel.timerRiddles.enumerated() {
+            let progress = viewModel.timerProgressCache[riddle.uiId]
+            riddleResults[index] = progress?.isCorrect ?? false
+            hintsUsed[index] = progress?.usedHints ?? 0
+            attempts[index] = progress?.attempts ?? 0
+            revealedHints[index] = progress?.revealedHintIndices.count ?? 0
+            // Keep visibility separate: loading/saving should not re-open hidden hints.
+        }
+        if data["completed"] as? Bool == true {
+            timer?.invalidate()
+            isTimerRunning = false
+            if isViewActive { showGameRecap = true }
+        } else if timerSeconds == 0 {
+            timer?.invalidate()
+            isTimerRunning = false
+            if isViewActive { showGameOver = true }
+        }
+    }
+
     private func determineMedal() -> String? {
         let timeTaken = totalTime - timerSeconds
         if timeTaken <= 60 { return "Gold" }

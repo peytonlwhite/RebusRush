@@ -120,6 +120,13 @@ struct GameRecapView: View {
         
         if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
            let rootViewController = windowScene.windows.first?.rootViewController {
+            if let popover = activityController.popoverPresentationController {
+                popover.sourceView = rootViewController.view
+                popover.sourceRect = CGRect(x: rootViewController.view.bounds.midX,
+                                           y: rootViewController.view.bounds.midY,
+                                           width: 0, height: 0)
+                popover.permittedArrowDirections = []
+            }
             rootViewController.present(activityController, animated: true) {
                 isSharing = false
             }

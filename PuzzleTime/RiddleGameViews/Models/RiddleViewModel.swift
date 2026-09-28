@@ -12,11 +12,15 @@ struct Riddle: Identifiable, Codable, Equatable, Hashable {
     let explanation: String
     
     // For SwiftUI ForEach
-    var uiId: String { id ?? UUID().uuidString }
+    var uiId: String { id ?? photoUrl }
     
     // Custom equality based on uiId (safe and fast)
     static func == (lhs: Riddle, rhs: Riddle) -> Bool {
         return lhs.uiId == rhs.uiId
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(uiId)
     }
 }
 // NEW: Struct for timer challenge progress
@@ -70,7 +74,10 @@ final class RiddleViewModel: ObservableObject {
     @Published var progressCache: [String: RiddleProgress] = [:] // For regular play
     @Published var dailyProgressCache: [String: RiddleProgress] = [:] // For daily challenges
     @Published var timerProgressCache: [String: TimerChallengeProgress] = [:] // For timer challenges
+    private(set) var timerSavedData: [String: Any]?
     @Published var dailyRiddle: Riddle? = nil
+    private(set) var dailyChallengeDate = Date()
+    var timerChallengeDate = Date()
     @Published var isDailyMode = false
     private let db = Firestore.firestore()
     private var cancellables = Set<AnyCancellable>()
@@ -90,7 +97,8 @@ final class RiddleViewModel: ObservableObject {
     }
     
     func loadDailyRiddle() async {
-        let docRef = db.collection("dailyChallenges").document(Date.utcDayString)
+        dailyChallengeDate = Date()
+        let docRef = db.collection("dailyChallenges").document(dailyChallengeDate.utcDayString)
         do {
             let doc = try await docRef.getDocument()
             guard doc.exists, let data = doc.data(), let riddleId = data["riddleId"] as? String else {
@@ -100,7 +108,8 @@ final class RiddleViewModel: ObservableObject {
             if let riddle = riddles.first(where: { $0.uiId == riddleId }) {
                 dailyRiddle = riddle
             } else {
-                await loadFallbackDaily()
+                dailyRiddle = try await db.collection("riddles").document(riddleId)
+                    .getDocument(as: Riddle.self)
             }
         } catch {
             print("Daily riddle error: \(error)")
@@ -113,71 +122,52 @@ final class RiddleViewModel: ObservableObject {
         dailyRiddle = riddles.shuffled().first
     }
     
-    func loadTimerChallengeProgress(for userId: String, date: Date = Date()) async {
-        guard !userId.isEmpty, userId != "guest" else { return }
-        
-        let progressRef = db.collection("users")
-            .document(userId)
-            .collection("timerDailyChallengeProgress")
-            .document(date.utcDayString)
-        
-        do {
-            let doc = try await progressRef.getDocument()
-            guard doc.exists, let data = doc.data() else { return }
-            
-            // Restore timerRiddles from saved IDs if needed
-            if timerRiddles.isEmpty {
-                if let id1 = data["riddleIdOne"] as? String,
-                   let id2 = data["riddleIdTwo"] as? String,
-                   let id3 = data["riddleIdThree"] as? String {
-                    let ids = [id1, id2, id3]
-                    var restored: [Riddle] = []
-                    for rid in ids {
-                        if let r = riddles.first(where: { $0.uiId == rid }) {
-                            restored.append(r)
-                        } else {
-                            let ref = db.collection("riddles").document(rid)
-                            if let r = try? await ref.getDocument(as: Riddle.self) {
-                                restored.append(r)
-                            }
-                        }
-                    }
-                    if restored.count == 3 { timerRiddles = restored }
-                }
-            }
-            
+    /// Read clock, results, and puzzle IDs from one snapshot; errors are not new games.
+    func loadTimerChallengeProgress(for userId: String, date: Date) async throws -> [String: Any]? {
+        guard !userId.isEmpty, userId != "guest" else {
+            throw NSError(domain: "RebusRush", code: 2,
+                          userInfo: [NSLocalizedDescriptionKey: "Sign in before starting a challenge."])
+        }
+        let snapshot = try await db.collection("users").document(userId)
+            .collection("timerDailyChallengeProgress").document(date.utcDayString).getDocument()
+        guard snapshot.exists, let data = snapshot.data() else {
             timerProgressCache.removeAll()
-            for (i, riddle) in timerRiddles.enumerated() {
-                let idx = i + 1
-                let progress = TimerChallengeProgress(
-                    riddleId: riddle.uiId,
-                    isCorrect: data["riddle\(idx)Correct"] as? Bool ?? false,
-                    attempts: data["attemptsRiddle\(idx)"] as? Int ?? 0,
-                    usedHints: data["hintsUsedRiddle\(idx)"] as? Int ?? 0,
-                    lastSeen: Date(),
-                    revealedHintIndices: data["revealedHintIndicesRiddle\(idx)"] as? [Int] ?? []
-                )
-                timerProgressCache[riddle.uiId] = progress
+            timerRiddles.removeAll()
+            timerSavedData = nil
+            return nil
+        }
+        let ids = GameRules.timerSuffixes.compactMap { data["riddleId\($0)"] as? String }
+        guard ids.count == 3, Set(ids).count == 3,
+              GameRules.timerRemainingSeconds(data) != nil else {
+            throw NSError(domain: "RebusRush", code: 3,
+                          userInfo: [NSLocalizedDescriptionKey: "Saved challenge data is incomplete. Please try again."])
+        }
+        var restored: [Riddle] = []
+        for id in ids {
+            if let local = (riddles + timerRiddles).first(where: { $0.uiId == id }) {
+                restored.append(local)
+            } else {
+                restored.append(try await db.collection("riddles").document(id).getDocument(as: Riddle.self))
             }
-        } catch {
-            print("Failed to load timer progress: \(error)")
         }
+        var progress: [String: TimerChallengeProgress] = [:]
+        for (index, riddle) in restored.enumerated() {
+            progress[riddle.uiId] = TimerChallengeProgress(
+                riddleId: riddle.uiId,
+                isCorrect: GameRules.timerValue(data, prefix: "riddle", index: index, ending: "Correct", default: false),
+                attempts: GameRules.timerValue(data, prefix: "attemptsRiddle", index: index, default: 0),
+                usedHints: GameRules.timerValue(data, prefix: "hintsUsedRiddle", index: index, default: 0),
+                lastSeen: Date(),
+                revealedHintIndices: GameRules.timerValue(data, prefix: "revealedHintIndicesRiddle", index: index, default: [Int]()))
+        }
+        timerRiddles = restored
+        timerProgressCache = progress
+        timerSavedData = data
+        return data
     }
-    
-    func getRiddleStr(index:Int) -> String {
-        if(index == 1) {
-            return "One"
-        }
-        if(index == 2) {
-            return "Two"
-        }
-        if(index == 3) {
-            return "Three"
-        }
-        return "NA"
-    }
-    
+
     func loadTimerDailyRiddles(date: Date = Date()) async {
+        timerRiddles.removeAll()
         let docRef = db.collection("timerRiddlesDaily").document(date.utcDayString)
         do {
             let doc = try await docRef.getDocument()
@@ -217,6 +207,8 @@ final class RiddleViewModel: ObservableObject {
     }
     func clearProgressCache() {
         progressCache.removeAll()
+        timerProgressCache.removeAll()
+        timerSavedData = nil
         print("RiddleViewModel: Cleared progress cache")
     }
     
@@ -229,6 +221,7 @@ final class RiddleViewModel: ObservableObject {
             return try snapshot.documents.compactMap { try $0.data(as: Riddle.self) }
         } catch {
             print("Failed to fetch riddles: \(error)")
+            errorMessage = "Couldn't load puzzles. Check your connection and try again."
             return []
         }
     }
@@ -239,6 +232,10 @@ final class RiddleViewModel: ObservableObject {
         
         // 1. Always load ALL riddles in background
         let allRiddles = await fetchAllRiddles()
+        guard errorMessage == nil else {
+            isLoading = false
+            return
+        }
         self.riddles = allRiddles
         
         // 2. If no user → guest mode: just show 5 random riddles
@@ -349,26 +346,27 @@ final class RiddleViewModel: ObservableObject {
             progressCache = regularCache
             
             // Daily challenge progress
-            let dailyRef = base.collection("dailychallengeprogress").document(Date.utcDayString)
+            dailyProgressCache.removeAll()
+            let dailyRef = base.collection("dailychallengeprogress").document(dailyChallengeDate.utcDayString)
             if let dailyRiddle {
                 if let doc = try? await dailyRef.getDocument(), doc.exists,
-                   let p = try? doc.data(as: RiddleProgress.self) {
+                   let p = try? doc.data(as: RiddleProgress.self), p.riddleId == dailyRiddle.uiId {
                     dailyProgressCache[dailyRiddle.uiId] = p
                 }
             }
             
             // Timer challenge progress (today)
+            timerProgressCache.removeAll()
             let timerRef = base.collection("timerDailyChallengeProgress").document(Date.utcDayString)
             if let doc = try? await timerRef.getDocument(), doc.exists, let data = doc.data() {
                 for (i, riddle) in timerRiddles.enumerated() {
-                    let idx = i + 1
                     let p = TimerChallengeProgress(
                         riddleId: riddle.uiId,
-                        isCorrect: data["riddle\(idx)Correct"] as? Bool ?? false,
-                        attempts: data["attemptsRiddle\(idx)"] as? Int ?? 0,
-                        usedHints: data["hintsUsedRiddle\(idx)"] as? Int ?? 0,
+                        isCorrect: GameRules.timerValue(data, prefix: "riddle", index: i, ending: "Correct", default: false),
+                        attempts: GameRules.timerValue(data, prefix: "attemptsRiddle", index: i, default: 0),
+                        usedHints: GameRules.timerValue(data, prefix: "hintsUsedRiddle", index: i, default: 0),
                         lastSeen: Date(),
-                        revealedHintIndices: data["revealedHintIndicesRiddle\(idx)"] as? [Int] ?? []
+                        revealedHintIndices: GameRules.timerValue(data, prefix: "revealedHintIndicesRiddle", index: i, default: [Int]())
                     )
                     timerProgressCache[riddle.uiId] = p
                 }
@@ -383,52 +381,57 @@ final class RiddleViewModel: ObservableObject {
         isCorrect: Bool,
         attempts: Int,
         usedHints: Int,
-        coinsEarned: Int,
         userId: String,
         isDaily: Bool,
+        date: Date,
         revealedHintIndices: [Int]
-    ) async {
+    ) async throws -> Int {
         let riddleId = riddle.uiId
         let userRef = db.collection("users").document(userId)
-        
-        let progress = RiddleProgress(
-            riddleId: riddleId,
-            isCorrect: isCorrect,
-            attempts: attempts,
-            usedHints: usedHints,
-            lastSeen: Date(),
-            solvedDate: isCorrect ? Date() : nil,
-            coinsEarned: coinsEarned,
-            revealedHintIndices: revealedHintIndices
-        )
-        
-        do {
-            if isDaily {
-                try await userRef.collection("dailychallengeprogress")
-                    .document(Date.utcDayString)
-                    .setData(from: progress, merge: true)
-                dailyProgressCache[riddleId] = progress
-            } else {
-                try await userRef.collection("riddleProgress")
-                    .document(riddleId)
-                    .setData(from: progress, merge: true)
-                progressCache[riddleId] = progress
+        let progressRef = isDaily
+            ? userRef.collection("dailychallengeprogress").document(date.utcDayString)
+            : userRef.collection("riddleProgress").document(riddleId)
+        let result = try await db.runTransaction { transaction, errorPointer -> Any? in
+            do {
+                let snapshot = try transaction.getDocument(progressRef)
+                let decoded = snapshot.exists ? try snapshot.data(as: RiddleProgress.self) : nil
+                let existing = decoded?.riddleId == riddleId ? decoded : nil
+                if let existing, existing.isCorrect { return (existing, 0) }
+                let hints = GameRules.hintIndices(saved: existing?.revealedHintIndices ?? [],
+                                                  visible: revealedHintIndices)
+                let hintCount = max(usedHints, hints.count)
+                let attemptCount = max(attempts, (existing?.attempts ?? 0) + 1)
+                let award = isCorrect ? max(0, 50 - (attemptCount - 1) * 10 - hintCount * 10) : 0
+                let progress = RiddleProgress(riddleId: riddleId, isCorrect: isCorrect,
+                    attempts: attemptCount, usedHints: hintCount, lastSeen: Date(),
+                    solvedDate: isCorrect ? Date() : nil, coinsEarned: award,
+                    revealedHintIndices: hints)
+                try transaction.setData(from: progress, forDocument: progressRef, merge: true)
+                if award > 0 {
+                    transaction.setData(["coins": FieldValue.increment(Int64(award))],
+                                        forDocument: userRef, merge: true)
+                }
+                return (progress, award)
+            } catch {
+                errorPointer?.pointee = error as NSError
+                return nil
             }
-            
-            if coinsEarned > 0 {
-                try await userRef.setData(["coins": FieldValue.increment(Int64(coinsEarned))],merge: true)
-                await UserViewModel.shared.refreshCoins()
-            }
-            
-            if isDaily && isCorrect {
-                await UserViewModel.shared.updateStreak(completedToday: true)
-            }
-        } catch {
-            print("Save progress failed: \(error)")
         }
+        guard let (progress, award) = result as? (RiddleProgress, Int) else {
+            throw NSError(domain: "RebusRush", code: 1,
+                          userInfo: [NSLocalizedDescriptionKey: "Couldn't save puzzle progress."])
+        }
+        if isDaily { dailyProgressCache[riddleId] = progress }
+        else { progressCache[riddleId] = progress }
+        await UserViewModel.shared.refreshCoins()
+        if isDaily && progress.isCorrect {
+            await UserViewModel.shared.updateStreak(completedToday: true, date: date)
+        }
+        return award
     }
     
     
+    @discardableResult
     func saveTimerChallengeProgress(
         userId: String,
         date: Date = Date(),
@@ -439,9 +442,13 @@ final class RiddleViewModel: ObservableObject {
         riddleResults: [Int: Bool],
         hintsUsed: [Int: Int],
         revealedHintIndices: [Int: [Int]],
-        attempts: [Int: Int]
-    ) async {
-        guard !userId.isEmpty, userId != "guest" else { return }
+        attempts: [Int: Int],
+        rewardForRiddleIndex: Int? = nil
+    ) async -> Int? {
+        guard !userId.isEmpty, userId != "guest" else { return nil }
+        let sessionRiddles = timerRiddles
+        guard sessionRiddles.count == 3,
+              Set(sessionRiddles.map(\.uiId)).count == 3 else { return nil }
         
         let progressRef = db.collection("users")
             .document(userId)
@@ -451,7 +458,7 @@ final class RiddleViewModel: ObservableObject {
         var data: [String: Any] = [
             "played": played,
             "completed": completed,
-            "timeRemaining": timeRemaining as Any,
+            "timeRemaining": timeRemaining.map { $0 as Any } ?? NSNull(),
             "timeTakenSeconds": timeTakenSeconds,
             "riddleOneCorrect": riddleResults[0] ?? false,
             "riddleTwoCorrect": riddleResults[1] ?? false,
@@ -467,410 +474,183 @@ final class RiddleViewModel: ObservableObject {
             "attemptsRiddleThree": attempts[2] ?? 0
         ]
         
-        if timerRiddles.count > 0 { data["riddleIdOne"] = timerRiddles[0].uiId }
-        if timerRiddles.count > 1 { data["riddleIdTwo"] = timerRiddles[1].uiId }
-        if timerRiddles.count > 2 { data["riddleIdThree"] = timerRiddles[2].uiId }
+        for (index, suffix) in GameRules.timerSuffixes.enumerated() {
+            data["riddleId\(suffix)"] = sessionRiddles[index].uiId
+        }
+
+        // Visibility is temporary; purchases must survive auto-hide and autosave.
+        for (index, riddle) in sessionRiddles.enumerated() {
+            let indices = GameRules.hintIndices(
+                saved: timerProgressCache[riddle.uiId]?.revealedHintIndices ?? [],
+                visible: revealedHintIndices[index] ?? [])
+            let suffix = GameRules.timerSuffixes[index]
+            data["revealedHintIndicesRiddle\(suffix)"] = indices
+            data["hintsUsedRiddle\(suffix)"] = max(hintsUsed[index] ?? 0, indices.count)
+        }
         
         do {
-            try await progressRef.setData(data, merge: false)
+            let proposed = data
+            let userRef = db.collection("users").document(userId)
+            let result = try await db.runTransaction { transaction, errorPointer -> Any? in
+                do {
+                    let previous = try transaction.getDocument(progressRef).data() ?? [:]
+                    if !previous.isEmpty {
+                        guard GameRules.timerSuffixes.allSatisfy({ suffix in
+                            previous["riddleId\(suffix)"] as? String == proposed["riddleId\(suffix)"] as? String
+                        }), GameRules.timerRemainingSeconds(previous) != nil else {
+                            throw NSError(domain: "RebusRush", code: 2,
+                                userInfo: [NSLocalizedDescriptionKey: "Saved challenge differs from this session. Reopen the challenge to restore it."])
+                        }
+                    }
+                    if previous["completed"] as? Bool == true { return (previous, 0) }
+                    // An old in-flight save must not reopen an expired run.
+                    if previous["played"] as? Bool == true,
+                       GameRules.timerRemainingSeconds(previous) == 0 { return (previous, 0) }
+                    var next = proposed
+                    var award = 0
+                    for (index, suffix) in GameRules.timerSuffixes.enumerated() {
+                        let hints = GameRules.hintIndices(
+                            saved: GameRules.timerValue(previous, prefix: "revealedHintIndicesRiddle", index: index, default: [Int]()),
+                            visible: next["revealedHintIndicesRiddle\(suffix)"] as? [Int] ?? [])
+                        let hintCount = max(hints.count,
+                            max(GameRules.timerValue(previous, prefix: "hintsUsedRiddle", index: index, default: 0),
+                                next["hintsUsedRiddle\(suffix)"] as? Int ?? 0))
+                        let wasCorrect = GameRules.timerValue(previous, prefix: "riddle", index: index, ending: "Correct", default: false)
+                        let isCorrect = next["riddle\(suffix)Correct"] as? Bool == true
+                        next["riddle\(suffix)Correct"] = wasCorrect || isCorrect
+                        next["revealedHintIndicesRiddle\(suffix)"] = hints
+                        next["hintsUsedRiddle\(suffix)"] = hintCount
+                        next["attemptsRiddle\(suffix)"] = max(
+                            GameRules.timerValue(previous, prefix: "attemptsRiddle", index: index, default: 0),
+                            next["attemptsRiddle\(suffix)"] as? Int ?? 0)
+                        if rewardForRiddleIndex == index && isCorrect && !wasCorrect {
+                            award = max(0, 50 - hintCount * 10)
+                        }
+                    }
+                    let allSolved = GameRules.timerSuffixes.allSatisfy { next["riddle\($0)Correct"] as? Bool == true }
+                    next["completed"] = allSolved
+                    let remaining = GameRules.remainingAfterSave(previous: previous, proposed: timeRemaining)
+                    if allSolved {
+                        next["timeRemaining"] = NSNull()
+                        next["timeTakenSeconds"] = min(GameRules.timerDuration,
+                            max(previous["timeTakenSeconds"] as? Int ?? 0, timeTakenSeconds))
+                    } else {
+                        next["timeRemaining"] = remaining
+                        next["timeTakenSeconds"] = GameRules.timerDuration - remaining
+                    }
+                    transaction.setData(next, forDocument: progressRef, merge: true)
+                    if award > 0 {
+                        transaction.setData(["coins": FieldValue.increment(Int64(award))],
+                                            forDocument: userRef, merge: true)
+                    }
+                    return (next, award)
+                } catch {
+                    errorPointer?.pointee = error as NSError
+                    return nil
+                }
+            }
+            guard let (committed, award) = result as? ([String: Any], Int) else { return nil }
+            // A finished request from an old screen must not replace a newer session's cache.
+            guard timerChallengeDate.utcDayString == date.utcDayString,
+                  timerRiddles.map(\.uiId) == sessionRiddles.map(\.uiId) else { return award }
+            data = committed
+            timerSavedData = committed
             // Update cache
-            for (i, riddle) in timerRiddles.enumerated() {
+            for (i, riddle) in sessionRiddles.enumerated() {
                 let p = TimerChallengeProgress(
                     riddleId: riddle.uiId,
-                    isCorrect: riddleResults[i] ?? false,
-                    attempts: attempts[i] ?? 0,
-                    usedHints: hintsUsed[i] ?? 0,
+                    isCorrect: GameRules.timerValue(data, prefix: "riddle", index: i, ending: "Correct", default: false),
+                    attempts: GameRules.timerValue(data, prefix: "attemptsRiddle", index: i, default: 0),
+                    usedHints: GameRules.timerValue(data, prefix: "hintsUsedRiddle", index: i, default: 0),
                     lastSeen: Date(),
-                    revealedHintIndices: revealedHintIndices[i] ?? []
+                    revealedHintIndices: GameRules.timerValue(data, prefix: "revealedHintIndicesRiddle", index: i, default: [Int]())
                 )
                 timerProgressCache[riddle.uiId] = p
             }
+            return award
         } catch {
             print("Save timer progress failed: \(error)")
+            return nil
         }
     }
     
     func purchaseHint(
-        riddle: Riddle,
-        hintIndex: Int,
-        userId: String,
-        isDaily: Bool,
-        isTimerChallenge: Bool,
-        coinsDeducted: Int,
-        currentHintIndices: [Int],
-        riddleIndex: Int?
+        riddle: Riddle, hintIndex: Int, userId: String,
+        isDaily: Bool, isTimerChallenge: Bool, coinsDeducted: Int,
+        riddleIndex: Int?, date: Date
     ) async -> Bool {
-        let riddleId = riddle.id ?? riddle.uiId
-        let todayStr = Date.utcDayString  // ← Clean & safe
+        guard !userId.isEmpty, userId != "guest", riddle.hints.indices.contains(hintIndex),
+              coinsDeducted == 0 || coinsDeducted == 50 else { return false }
+        if isTimerChallenge {
+            guard let index = riddleIndex, GameRules.timerSuffixes.indices.contains(index) else { return false }
+        }
+        let riddleId = riddle.uiId
         let userRef = db.collection("users").document(userId)
-        
+        let progressRef = isTimerChallenge
+            ? userRef.collection("timerDailyChallengeProgress").document(date.utcDayString)
+            : isDaily ? userRef.collection("dailychallengeprogress").document(date.utcDayString)
+                      : userRef.collection("riddleProgress").document(riddleId)
         do {
-            // MARK: - 1. PAID HINTS (transaction)
-            if coinsDeducted > 0 {
-                let result = try await db.runTransaction { transaction, errorPointer -> Any? in
-                    do {
-                        // 1. READ USER DOCUMENT (must be BEFORE any writes)
-                        let userDoc = try transaction.getDocument(userRef)
-                        guard let data = userDoc.data(),
-                              let currentCoins = data["coins"] as? Int else {
-                            return false
-                        }
-                        
-                        guard currentCoins >= coinsDeducted else {
-                            return false
-                        }
-                        
-                        // 2. DETERMINE PROGRESS REFERENCE + READ PROGRESS (must be BEFORE any writes)
-                        var progressRef: DocumentReference!
-                        var existingProgress: RiddleProgress?
-                        var existingTimerArray: [Int] = []
-                        var field = ""
-                        var hintsField = ""
-                        
-                        if isTimerChallenge,
-                           let idx = riddleIndex,
-                           idx >= 0, idx < 3 {
-                            progressRef = userRef
-                                .collection("timerDailyChallengeProgress")
-                                .document(todayStr)
-                            
-                            field = "revealedHintIndicesRiddle\(self.getRiddleStr(index: idx + 1))"
-                            hintsField = "hintsUsedRiddle\(self.getRiddleStr(index: idx + 1))"
-                            
-                            let progressDoc = try transaction.getDocument(progressRef)
-                            existingTimerArray = progressDoc.data()?[field] as? [Int] ?? []
-                        }
-                        else if isDaily {
-                            progressRef = userRef
-                                .collection("dailychallengeprogress")
-                                .document(todayStr)
-                            
-                            let progressDoc = try transaction.getDocument(progressRef)
-                            existingProgress = try? progressDoc.data(as: RiddleProgress.self)
-                        } else {
-                            progressRef = userRef
-                                .collection("riddleProgress")
-                                .document(riddleId)
-                            
-                            let progressDoc = try transaction.getDocument(progressRef)
-                            existingProgress = try? progressDoc.data(as: RiddleProgress.self)
-                        }
-                        
-                        // 3. CALCULATE UPDATED HINTS (still no writes yet!)
-                        let updatedHints: [Int]
-                        
-                        if isTimerChallenge {
-                            updatedHints = self.buildUpdatedHintIndices(current: existingTimerArray,
-                                                                        newHint: hintIndex)
-                        } else {
-                            updatedHints = self.buildUpdatedHintIndices(
-                                current: existingProgress?.revealedHintIndices ?? [],
-                                newHint: hintIndex
-                            )
-                        }
-                        
-                        // 4. WRITE EVERYTHING (all writes AFTER all reads)
-                        transaction.updateData(["coins": currentCoins - coinsDeducted], forDocument: userRef)
-                        
-                        if isTimerChallenge {
-                            transaction.updateData([
-                                field: updatedHints,
-                                hintsField: updatedHints.count
-                            ], forDocument: progressRef)
-                            
-                            // Update cache (synchronously, no UI impact yet)
-                            let cache = self.timerProgressCache[riddleId] ?? TimerChallengeProgress(
-                                riddleId: riddleId, isCorrect: false, attempts: 0,
-                                usedHints: 0, lastSeen: Date(), revealedHintIndices: []
-                            )
-                            self.timerProgressCache[riddleId] = TimerChallengeProgress(
-                                riddleId: riddleId,
-                                isCorrect: cache.isCorrect,
-                                attempts: cache.attempts,
-                                usedHints: updatedHints.count,
-                                lastSeen: Date(),
-                                revealedHintIndices: updatedHints
-                            )
-                        } else {
-                            let newProgress = self.buildRiddleProgress(
-                                existing: existingProgress,
-                                riddleId: riddleId,
-                                updatedHints: updatedHints
-                            )
-                            
-                            try transaction.setData(from: newProgress,
-                                                    forDocument: progressRef,
-                                                    merge: true)
-                            // Note: Cache update moved outside transaction
-                        }
-                        
-                        return (true, isDaily, updatedHints, existingProgress) // Return data for cache update
-                        
-                    } catch {
-                        errorPointer?.pointee = NSError(
-                            domain: "purchaseHint",
-                            code: -1,
-                            userInfo: [NSLocalizedDescriptionKey: error.localizedDescription]
-                        )
-                        return false
+            // Paid and ad-earned hints use the same transaction, so neither can undo a solve.
+            let result = try await db.runTransaction { transaction, errorPointer -> Any? in
+                do {
+                    let user = try transaction.getDocument(userRef)
+                    let snapshot = try transaction.getDocument(progressRef)
+                    let data = snapshot.data() ?? [:]
+                    let existing: RiddleProgress?
+                    let purchased: [Int]
+                    if isTimerChallenge, let index = riddleIndex {
+                        guard data["riddleId\(GameRules.timerSuffixes[index])"] as? String == riddleId,
+                              data["completed"] as? Bool != true,
+                              (GameRules.timerRemainingSeconds(data) ?? 0) > 0 else { return nil }
+                        existing = nil
+                        purchased = GameRules.timerValue(data, prefix: "revealedHintIndicesRiddle", index: index, default: [Int]())
+                    } else {
+                        let decoded = snapshot.exists ? try snapshot.data(as: RiddleProgress.self) : nil
+                        existing = decoded?.riddleId == riddleId ? decoded : nil
+                        purchased = existing?.revealedHintIndices ?? []
                     }
-                }
-                
-                // Handle transaction result
-                guard let resultTuple = result as? (success: Bool, isDaily: Bool, updatedHints: [Int], existingProgress: RiddleProgress?) else {
-                    return false
-                }
-                if !resultTuple.success { return false }
-                
-                // Update cache on main thread after transaction
-                if !isTimerChallenge {
-                    let newProgress = self.buildRiddleProgress(
-                        existing: resultTuple.existingProgress,
-                        riddleId: riddleId,
-                        updatedHints: resultTuple.updatedHints
-                    )
-                    await MainActor.run {
-                        if resultTuple.isDaily {
-                            self.dailyProgressCache[riddleId] = newProgress
-                        } else {
-                            self.progressCache[riddleId] = newProgress
-                        }
+                    let charge = purchased.contains(hintIndex) ? 0 : coinsDeducted
+                    let balance = user.data()?["coins"] as? Int ?? 0
+                    guard balance >= charge else { return nil }
+                    let updated = GameRules.hintIndices(saved: purchased, visible: [hintIndex])
+                    if charge > 0 {
+                        transaction.updateData(["coins": balance - charge], forDocument: userRef)
                     }
+                    if isTimerChallenge, let index = riddleIndex {
+                        let suffix = GameRules.timerSuffixes[index]
+                        transaction.updateData(["revealedHintIndicesRiddle\(suffix)": updated,
+                                                "hintsUsedRiddle\(suffix)": updated.count], forDocument: progressRef)
+                        return TimerChallengeProgress(riddleId: riddleId,
+                            isCorrect: GameRules.timerValue(data, prefix: "riddle", index: index, ending: "Correct", default: false),
+                            attempts: GameRules.timerValue(data, prefix: "attemptsRiddle", index: index, default: 0),
+                            usedHints: updated.count, lastSeen: Date(), revealedHintIndices: updated)
+                    }
+                    let progress = RiddleProgress(riddleId: riddleId,
+                        isCorrect: existing?.isCorrect ?? false, attempts: existing?.attempts ?? 0,
+                        usedHints: updated.count, lastSeen: Date(), solvedDate: existing?.solvedDate,
+                        coinsEarned: existing?.coinsEarned ?? 0, revealedHintIndices: updated)
+                    try transaction.setData(from: progress, forDocument: progressRef, merge: true)
+                    return progress
+                } catch {
+                    errorPointer?.pointee = error as NSError
+                    return nil
                 }
             }
-            
-            // MARK: - 2. FREE HINTS (no coins)
-            else {
-                if isTimerChallenge,
-                   let idx = riddleIndex,
-                   idx >= 0, idx < 3 {
-                    try await updateTimerChallengeHint(
-                        userRef: userRef,
-                        riddleId: riddleId,
-                        hintIndex: hintIndex,
-                        riddleIndex: idx,
-                        todayStr: todayStr
-                    )
-                }
-                else if isDaily {
-                    try await updateDailyHint(
-                        userRef: userRef,
-                        riddleId: riddleId,
-                        hintIndex: hintIndex,
-                        todayStr: todayStr
-                    )
-                }
-                else {
-                    try await updateStandardHint(
-                        userRef: userRef,
-                        riddleId: riddleId,
-                        hintIndex: hintIndex
-                    )
-                }
-            }
-            
-            // Refresh coins
+            if let progress = result as? TimerChallengeProgress {
+                timerProgressCache[riddleId] = progress
+            } else if let progress = result as? RiddleProgress {
+                if isDaily { dailyProgressCache[riddleId] = progress }
+                else { progressCache[riddleId] = progress }
+            } else { return false }
             await UserViewModel.shared.refreshCoins()
             return true
-            
         } catch {
-            print("purchaseHint failed: \(error)")
+            print("Hint purchase failed: \(error)")
             return false
         }
     }
-    
-    
-    func getTodayString() -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        return formatter.string(from: Date())
-    }
-    
-    func buildUpdatedHintIndices(current: [Int], newHint: Int) -> [Int] {
-        return Array(Set(current + [newHint])).sorted()
-    }
-    
-    func buildRiddleProgress(
-        existing: RiddleProgress?,
-        riddleId: String,
-        updatedHints: [Int]
-    ) -> RiddleProgress {
-        return RiddleProgress(
-            riddleId: riddleId,
-            isCorrect: existing?.isCorrect ?? false,
-            attempts: existing?.attempts ?? 0,
-            usedHints: updatedHints.count,
-            lastSeen: Date(),
-            solvedDate: existing?.solvedDate,
-            coinsEarned: existing?.coinsEarned ?? 0,
-            revealedHintIndices: updatedHints
-        )
-    }
-    
-    
-    
-    func updateStandardHintTransaction(
-        transaction: Transaction,
-        progressRef: DocumentReference,
-        riddleId: String,
-        hintIndex: Int
-    ) throws {
-        
-        let doc = try transaction.getDocument(progressRef)
-        let existing = try? doc.data(as: RiddleProgress.self)
-        let updated = buildUpdatedHintIndices(current: existing?.revealedHintIndices ?? [], newHint: hintIndex)
-        
-        let newProgress = buildRiddleProgress(existing: existing, riddleId: riddleId, updatedHints: updated)
-        
-        try transaction.setData(from: newProgress, forDocument: progressRef, merge: true)
-        
-        progressCache[riddleId] = newProgress
-    }
-    
-    
-    func updateDailyHintTransaction(
-        transaction: Transaction,
-        progressRef: DocumentReference,
-        riddleId: String,
-        hintIndex: Int
-    ) throws {
-        
-        let doc = try transaction.getDocument(progressRef)
-        let existing = try? doc.data(as: RiddleProgress.self)
-        let updated = buildUpdatedHintIndices(current: existing?.revealedHintIndices ?? [], newHint: hintIndex)
-        
-        let newProgress = buildRiddleProgress(existing: existing, riddleId: riddleId, updatedHints: updated)
-        
-        try transaction.setData(from: newProgress, forDocument: progressRef, merge: true)
-        
-        dailyProgressCache[riddleId] = newProgress
-    }
-    
-    
-    func updateTimerChallengeHintTransaction(
-        transaction: Transaction,
-        progressRef: DocumentReference,
-        riddleId: String,
-        hintIndex: Int,
-        riddleIndex: Int
-    ) throws {
-        
-        let field = "revealedHintIndicesRiddle\(getRiddleStr(index: riddleIndex + 1))"
-        let hintsField = "hintsUsedRiddle\(getRiddleStr(index: riddleIndex + 1))"
-        
-        let doc = try transaction.getDocument(progressRef)
-        let existing = doc.data()?[field] as? [Int] ?? []
-        let updated = buildUpdatedHintIndices(current: existing, newHint: hintIndex)
-        
-        transaction.updateData([
-            field: updated,
-            hintsField: updated.count
-        ], forDocument: progressRef)
-        
-        let cache = timerProgressCache[riddleId] ?? TimerChallengeProgress(
-            riddleId: riddleId,
-            isCorrect: false,
-            attempts: 0,
-            usedHints: 0,
-            lastSeen: Date(),
-            revealedHintIndices: []
-        )
-        
-        timerProgressCache[riddleId] = TimerChallengeProgress(
-            riddleId: riddleId,
-            isCorrect: cache.isCorrect,
-            attempts: cache.attempts,
-            usedHints: updated.count,
-            lastSeen: Date(),
-            revealedHintIndices: updated
-        )
-    }
-    
-    
-    func updateStandardHint(
-        userRef: DocumentReference,
-        riddleId: String,
-        hintIndex: Int
-    ) async throws {
-        
-        let progressRef = userRef.collection("riddleProgress").document(riddleId)
-        let doc = try await progressRef.getDocument()
-        
-        let existing = try? doc.data(as: RiddleProgress.self)
-        let updated = buildUpdatedHintIndices(current: existing?.revealedHintIndices ?? [], newHint: hintIndex)
-        
-        let newProgress = buildRiddleProgress(existing: existing, riddleId: riddleId, updatedHints: updated)
-        
-        try progressRef.setData(from: newProgress, merge: true)
-        
-        progressCache[riddleId] = newProgress
-    }
-    
-    
-    func updateDailyHint(
-        userRef: DocumentReference,
-        riddleId: String,
-        hintIndex: Int,
-        todayStr: String
-    ) async throws {
-        
-        let progressRef = userRef.collection("dailychallengeprogress").document(todayStr)
-        let doc = try await progressRef.getDocument()
-        
-        let existing = try? doc.data(as: RiddleProgress.self)
-        let updated = buildUpdatedHintIndices(current: existing?.revealedHintIndices ?? [], newHint: hintIndex)
-        
-        let newProgress = buildRiddleProgress(existing: existing, riddleId: riddleId, updatedHints: updated)
-        
-        try progressRef.setData(from: newProgress, merge: true)
-        
-        dailyProgressCache[riddleId] = newProgress
-    }
-    
-    
-    func updateTimerChallengeHint(
-        userRef: DocumentReference,
-        riddleId: String,
-        hintIndex: Int,
-        riddleIndex: Int,
-        todayStr: String
-    ) async throws {
-        
-        let progressRef = userRef.collection("timerDailyChallengeProgress").document(todayStr)
-        let field = "revealedHintIndicesRiddle\(getRiddleStr(index: riddleIndex + 1))"
-        let hintsField = "hintsUsedRiddle\(getRiddleStr(index: riddleIndex + 1))"
-        
-        let doc = try await progressRef.getDocument()
-        let existingIndices = doc.data()?[field] as? [Int] ?? []
-        let updated = buildUpdatedHintIndices(current: existingIndices, newHint: hintIndex)
-        
-        try await progressRef.setData([
-            field: updated,
-            hintsField: updated.count
-        ], merge: true)
-        
-        // Update cache
-        let existingCache = timerProgressCache[riddleId] ?? TimerChallengeProgress(
-            riddleId: riddleId,
-            isCorrect: false,
-            attempts: 0,
-            usedHints: 0,
-            lastSeen: Date(),
-            revealedHintIndices: []
-        )
-        
-        timerProgressCache[riddleId] = TimerChallengeProgress(
-            riddleId: riddleId,
-            isCorrect: existingCache.isCorrect,
-            attempts: existingCache.attempts,
-            usedHints: updated.count,
-            lastSeen: Date(),
-            revealedHintIndices: updated
-        )
-    }
-    
-    
+
     func refresh() async {
         await loadRiddles()
         await loadDailyRiddle()
