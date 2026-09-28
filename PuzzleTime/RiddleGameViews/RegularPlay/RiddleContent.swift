@@ -9,6 +9,7 @@ struct RiddleContent: View {
     @Binding var isLoading: Bool
     @Binding var revealedHints: Int
     @Binding var pandaWave: Bool
+    @State private var showReport = false
     @State private var showHintConfirmation: Bool = false
     @State private var pendingHintIndex: Int = 0
     @EnvironmentObject var userVM: UserViewModel
@@ -32,6 +33,14 @@ struct RiddleContent: View {
         GeometryReader { proxy in
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: 24) {
+                    HStack {
+                        if riddle.isNew() { Label("New", systemImage: "sparkles").foregroundStyle(.cyan) }
+                        if let label = riddle.difficultyLabel { Text(label).foregroundStyle(.secondary) }
+                        Spacer()
+                        Button { showReport = true } label: { Image(systemName: "flag") }
+                            .accessibilityLabel("Report puzzle")
+                            .disabled(isLoading || isAdLoading)
+                    }.font(.subheadline)
                     ProgressBadgeView(progress: progress as? RiddleProgress)
                     CoreContentView(
                         riddle: riddle,
@@ -64,6 +73,9 @@ struct RiddleContent: View {
                 .padding(.horizontal)
             }
             .overlay(HintCoinOverlay(hintCoinPop: hintCoinPop))
+        }
+        .sheet(isPresented: $showReport) {
+            PuzzleReportView(riddle: riddle, attemptedAnswer: userAnswer)
         }
         .onAppear {
             if isTimerChallenge {

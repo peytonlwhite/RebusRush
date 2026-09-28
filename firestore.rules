@@ -1,27 +1,44 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Preserve the existing app's access behavior during the automation rollout.
-    // URGENT follow-up: replace this legacy public-access rule before 2026-11-29.
-    match /{collection}/{document=**} {
-      allow read, write: if request.time < timestamp.date(2026, 11, 29)
-        && collection != 'riddleGenerationRuns'
-        && collection != 'adminSettings'
-        && collection != 'riddles';
+    function signedIn() { return request.auth != null; }
+    function owns(uid) { return signedIn() && request.auth.uid == uid; }
+    // Content management and generation use Admin SDK / IAM only.
+    match /riddles/{id} { allow read: if true; }
+    match /dailyChallenges/{id} { allow read: if true; }
+    match /timerRiddlesDaily/{id} { allow read: if true; }
+    match /adminSettings/riddleSettings { allow read: if true; }
+    match /users/{uid} {
+      // Existing releases calculate rewards on-device. This isolates players;
+      // it does not make their client-calculated coin balances cheat-proof.
+      allow read, write: if owns(uid);
+      match /{collection}/{id} {
+        allow read, write: if owns(uid) && collection in [
+          'riddleProgress', 'dailychallengeprogress',
+          'timerDailyChallengeProgress', 'dailyTenRiddles'
+        ];
+      }
     }
-
-    match /riddles/{riddleId}/{document=**} {
-      allow read: if request.time < timestamp.date(2026, 11, 29);
-      allow write: if request.time < timestamp.date(2026, 11, 29)
-        && !riddleId.matches('weekly_.*');
+    match /puzzleReports/{id} {
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['userId', 'riddleId', 'reason', 'answer', 'details', 'createdAt', 'status'])
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.riddleId is string
+        && request.resource.data.riddleId.size() > 0 && request.resource.data.riddleId.size() <= 150
+        && request.resource.data.reason in ['answer', 'hint', 'image']
+        && request.resource.data.answer is string && request.resource.data.answer.size() <= 200
+        && request.resource.data.details is string && request.resource.data.details.size() <= 1000
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.status == 'open';
     }
-
-    // Existing app settings retain their previous behavior. The new weekly job's
-    // controls and all generation run records are accessible only via Admin/IAM.
-    match /adminSettings/{setting}/{document=**} {
-      allow read, write: if request.time < timestamp.date(2026, 11, 29)
-        && setting != 'weeklyPuzzles';
+    match /contactUs/{id} {
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['userId', 'name', 'email', 'message', 'timestamp'])
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.name is string && request.resource.data.name.size() <= 200
+        && request.resource.data.email is string && request.resource.data.email.size() <= 320
+        && request.resource.data.message is string && request.resource.data.message.size() <= 10000
+        && request.resource.data.timestamp == request.time;
     }
   }
 }

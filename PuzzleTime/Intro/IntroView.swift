@@ -17,6 +17,7 @@ struct IntroView: View {
     @EnvironmentObject var userVM: UserViewModel
     @EnvironmentObject var rewardedVM: RewardedViewModel
 
+    @State private var showAccount = false
     @State private var showResetConfirmation: Bool = false
     @State private var showHowToPlay: Bool = false
     @State private var showContactUsSheet: Bool = false
@@ -74,6 +75,9 @@ struct IntroView: View {
                         Spacer()
                         
                         Menu {
+                            Button { showAccount = true } label: {
+                                Label("Save progress / Account", systemImage: "person.crop.circle")
+                            }
                             Button(action: { showHowToPlay = true }) {
                                 Label("How To Play", systemImage: "questionmark.circle")
                             }
@@ -103,6 +107,15 @@ struct IntroView: View {
                         viewModel: viewModel
                     )
                     
+                    Button { path.append("weekly") } label: {
+                        Label("New this week · \(viewModel.weeklyRiddles.count) puzzles", systemImage: "sparkles")
+                            .font(.headline).foregroundStyle(.white)
+                            .padding(12).frame(maxWidth: .infinity)
+                            .background(.purple.opacity(0.65), in: RoundedRectangle(cornerRadius: 16))
+                    }
+                    .padding(.horizontal)
+                    .disabled(viewModel.isLoading)
+
                     PandaPeekingBehindPlay(pandaPeek: $pandaPeek, isWaving: $isPandaWaving)
                     
                     if rewardedVM.isBannerAdLoaded, let bannerView = rewardedVM.getBannerView() {
@@ -187,7 +200,9 @@ struct IntroView: View {
             Text("This will reset your coins to 300 and clear regular puzzle and timer challenge progress. Your daily challenge progress and streaks will be kept. Continue?")
         }
         .navigationDestination(for: String.self) { view in
-            if view == "riddle" {
+            if view == "weekly" {
+                WeeklyPuzzlesView(puzzles: viewModel.weeklyRiddles)
+            } else if view == "riddle" {
                 RiddleCarouselView(viewModel: viewModel, isDailyMode: false)
                     .environmentObject(userVM)
             } else if view == "daily" {
@@ -198,6 +213,7 @@ struct IntroView: View {
                     .environmentObject(userVM)
             }
         }
+        .sheet(isPresented: $showAccount) { AccountView() }
         .sheet(isPresented: $showContactUsSheet) {
             ContactUsSheet()
                 .presentationDetents([.medium, .large])

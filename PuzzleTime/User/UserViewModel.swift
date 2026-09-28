@@ -22,6 +22,22 @@ final class UserViewModel: ObservableObject {
     private var listener: AuthStateDidChangeListenerHandle?
     
     private var signInTask: Task<Void, Error>?
+    var isChangingAccount = false
+
+    func adoptAccount(_ user: User) async throws {
+        if let signInTask { try await signInTask.value }
+        try await ensureUserDocumentExists(for: user.uid)
+        currentUser = user
+        uid = user.uid
+        await loadUserData()
+        isLoggedIn = true
+    }
+
+    func startFreshSession() async throws {
+        isLoggedIn = false
+        uid = "guest"
+        try await signInAnonymously()
+    }
 
     private init() {
         startAuthListener()
@@ -100,6 +116,7 @@ final class UserViewModel: ObservableObject {
     private func startAuthListener() {
         listener = Auth.auth().addStateDidChangeListener { [weak self] _, user in
             Task { @MainActor in
+                guard self?.isChangingAccount != true else { return }
                 if user != nil {
                     try? await self?.signInAnonymously()
                 } else {

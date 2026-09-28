@@ -20,6 +20,8 @@
 		5B7531472EB451A3005009DE /* FirebaseStorage in Frameworks */ = {isa = PBXBuildFile; productRef = 5B7531462EB451A3005009DE /* FirebaseStorage */; };
 		5B75314C2EB45438005009DE /* ConfettiSwiftUI in Frameworks */ = {isa = PBXBuildFile; productRef = 5B75314B2EB45438005009DE /* ConfettiSwiftUI */; };
 		5BAD84B72EBD9F750082F4DC /* GoogleMobileAds in Frameworks */ = {isa = PBXBuildFile; productRef = 5BAD84B62EBD9F750082F4DC /* GoogleMobileAds */; };
+		AA1111111111111111111101 /* FirebaseRemoteConfig in Frameworks */ = {isa = PBXBuildFile; productRef = AA1111111111111111111102 /* FirebaseRemoteConfig */; };
+		AA1111111111111111111103 /* FirebaseFunctions in Frameworks */ = {isa = PBXBuildFile; productRef = AA1111111111111111111104 /* FirebaseFunctions */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -90,6 +92,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AA1111111111111111111103 /* FirebaseFunctions in Frameworks */,
+				AA1111111111111111111101 /* FirebaseRemoteConfig in Frameworks */,
 				5B75313D2EB451A3005009DE /* FirebaseAILogic in Frameworks */,
 				5B7531432EB451A3005009DE /* FirebaseCore in Frameworks */,
 				5B75313F2EB451A3005009DE /* FirebaseAppCheck in Frameworks */,
@@ -173,6 +177,8 @@
 			);
 			name = PuzzleTime;
 			packageProductDependencies = (
+				AA1111111111111111111104 /* FirebaseFunctions */,
+				AA1111111111111111111102 /* FirebaseRemoteConfig */,
 				5B75313A2EB451A3005009DE /* FirebaseAI */,
 				5B75313C2EB451A3005009DE /* FirebaseAILogic */,
 				5B75313E2EB451A3005009DE /* FirebaseAppCheck */,
@@ -748,6 +754,8 @@
 			package = 5BAD84B52EBD92D00082F4DC /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */;
 			productName = GoogleMobileAds;
 		};
+		AA1111111111111111111102 /* FirebaseRemoteConfig */ = {isa = XCSwiftPackageProductDependency; productName = FirebaseRemoteConfig; };
+		AA1111111111111111111104 /* FirebaseFunctions */ = {isa = XCSwiftPackageProductDependency; productName = FirebaseFunctions; };
 /* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 5B7530FD2EB440C0005009DE /* Project object */;

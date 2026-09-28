@@ -2,6 +2,13 @@ import Foundation
 
 /// Shared rules for existing Firestore records and gameplay calculations.
 enum GameRules {
+    /// Shuffle before calling. Never omit an unsolved puzzle to fill with a solved one.
+    nonisolated static func dailySelection<T>(_ items: [T], count: Int, isSolved: (T) -> Bool) -> [T] {
+        let unsolved = items.filter { !isSolved($0) }
+        let solved = items.filter(isSolved)
+        return Array((unsolved + solved).prefix(max(0, count)))
+    }
+
     nonisolated static let timerDuration = 180
     nonisolated static let timerSuffixes = ["One", "Two", "Three"]
 

@@ -11,6 +11,33 @@ import Testing
 
 @MainActor
 struct PuzzleTimeTests {
+    @Test func keepsEveryRemainingUnsolvedPuzzle() {
+        let result = GameRules.dailySelection([1, 2, 3, 4, 5, 6], count: 5) { $0 <= 4 }
+        #expect(result.count == 5)
+        #expect(Array(result.prefix(2)) == [5, 6])
+        #expect(Set(result).count == 5)
+    }
+
+    @Test func handlesSmallEmptyAndFullySolvedLibraries() {
+        #expect(GameRules.dailySelection([1, 2], count: 5) { _ in true } == [1, 2])
+        #expect(GameRules.dailySelection([Int](), count: 5) { _ in false }.isEmpty)
+        #expect(GameRules.dailySelection([1, 2], count: -1) { _ in false }.isEmpty)
+        #expect(GameRules.dailySelection([1, 2, 3], count: 2) { _ in false } == [1, 2])
+    }
+
+    @Test func remoteModelRejectsInvalidValues() {
+        #expect(AIConfiguration.validatedModel("") == AIConfiguration.defaultModel)
+        #expect(AIConfiguration.validatedModel("https://example.com") == AIConfiguration.defaultModel)
+        #expect(AIConfiguration.validatedModel("gemini-future-flash") == "gemini-future-flash")
+    }
+
+    @Test func oldPuzzlesDoNotGetInventedMetadata() throws {
+        let data = Data(#"{"photoUrl":"https://example.com/p.png","answer":"test","hints":[],"explanation":"test"}"#.utf8)
+        let riddle = try JSONDecoder().decode(Riddle.self, from: data)
+        #expect(riddle.difficultyLabel == nil)
+        #expect(!riddle.isNew())
+        #expect(riddle.retired != true)
+    }
 
     private func date(_ value: String) -> Date {
         ISO8601DateFormatter().date(from: value)!

@@ -10,6 +10,20 @@ struct Riddle: Identifiable, Codable, Equatable, Hashable {
     let answer: String
     let hints: [String]
     let explanation: String
+    var difficulty: String? = nil
+    var generationWeek: String? = nil
+    var createdAt: Date? = nil
+    var retired: Bool? = nil
+
+    var difficultyLabel: String? {
+        guard let difficulty, ["easy", "medium", "hard"].contains(difficulty.lowercased()) else { return nil }
+        return difficulty.capitalized
+    }
+
+    func isNew(at now: Date = Date()) -> Bool {
+        guard generationWeek != nil, let createdAt else { return false }
+        return createdAt <= now && createdAt >= now.addingTimeInterval(-7 * 86400)
+    }
     
     // For SwiftUI ForEach
     var uiId: String { id ?? photoUrl }
@@ -68,6 +82,7 @@ struct RiddleProgress: Codable, Identifiable {
 @MainActor
 final class RiddleViewModel: ObservableObject {
     @Published var riddles: [Riddle] = []
+    @Published var weeklyRiddles: [Riddle] = []
     @Published var timerRiddles: [Riddle] = []
     @Published var isLoading = true
     @Published var errorMessage: String?
@@ -218,7 +233,7 @@ final class RiddleViewModel: ObservableObject {
                 .order(by: "createdAt")
                 .getDocuments()
             
-            return try snapshot.documents.compactMap { try $0.data(as: Riddle.self) }
+            return try snapshot.documents.compactMap { try $0.data(as: Riddle.self) }.filter { $0.retired != true }
         } catch {
             print("Failed to fetch riddles: \(error)")
             errorMessage = "Couldn't load puzzles. Check your connection and try again."
@@ -236,6 +251,7 @@ final class RiddleViewModel: ObservableObject {
             isLoading = false
             return
         }
+        weeklyRiddles = allRiddles.filter { $0.isNew() }.sorted { ($0.createdAt ?? .distantPast) > ($1.createdAt ?? .distantPast) }
         self.riddles = allRiddles
         
         // 2. If no user → guest mode: just show 5 random riddles
@@ -295,16 +311,10 @@ final class RiddleViewModel: ObservableObject {
             await loadProgress(for: userId) // refresh progress cache
             
             let solvedIds = Set(progressCache.filter { $0.value.isCorrect }.keys)
-            let unsolvedRiddles = allRiddles.filter { !solvedIds.contains($0.uiId) }
-            
-            let newSelection: [Riddle]
-            if unsolvedRiddles.count >= dailyRiddleCount {
-                newSelection = Array(unsolvedRiddles.shuffled().prefix(dailyRiddleCount))
-            } else {
-                // Not enough unsolved → fill with random (possibly already solved)
-                newSelection = Array(allRiddles.shuffled().prefix(dailyRiddleCount))
+            let newSelection = GameRules.dailySelection(allRiddles.shuffled(), count: dailyRiddleCount) {
+                solvedIds.contains($0.uiId)
             }
-            
+
             let newIds = newSelection.map { $0.uiId }
             
             // Save to user's daily collection for consistency tomorrow
@@ -320,7 +330,9 @@ final class RiddleViewModel: ObservableObject {
         } catch {
             print("Daily riddles load/save failed: \(error)")
             // Ultimate fallback: random selection using admin count
-            self.riddles = Array(allRiddles.shuffled().prefix(dailyRiddleCount))
+            self.riddles = GameRules.dailySelection(allRiddles.shuffled(), count: dailyRiddleCount) {
+                progressCache[$0.uiId]?.isCorrect == true
+            }
             self.hasLoadedDailyTen = true
         }
         

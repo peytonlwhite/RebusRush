@@ -100,6 +100,7 @@ struct PuzzleTimeApp: App {
         
         // NEW: Configure Firebase after setting App Check provider
         FirebaseApp.configure()
+        AIConfiguration.configure()
         
         // NEW: Fetch and log App Check token for debug/production
         #if DEBUG || targetEnvironment(simulator)
@@ -135,6 +136,7 @@ struct PuzzleTimeApp: App {
             Group {
                 if userVM.isLoggedIn {
                     ContentView()
+                        .id(userVM.uid)
                         .environmentObject(userVM)
                         .environmentObject(attStatusManager)
                         .environmentObject(rewardedVM)
@@ -163,6 +165,7 @@ struct PuzzleTimeApp: App {
                 }
             }
             .task {
+                await AIConfiguration.refresh()
                 // Ensure login
                 if !userVM.isLoggedIn {
                     await signIn()
