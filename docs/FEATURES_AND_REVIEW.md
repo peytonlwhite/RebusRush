@@ -36,6 +36,15 @@ This closes cross-player access and public writes. Coin and streak calculations 
 
 `npm test --prefix functions` covers generation, review input/host protection, and account deletion ordering/auth freshness. The iOS build workflow compiles iPhone Release and simulator targets and runs the gameplay unit suite. On-device TestFlight checks still need to exercise Apple linking, restoration, deletion, App Check, rewarded ads, and weekly gameplay.
 
+### TestFlight walkthrough
+
+1. Open **New this week**, buy a hint and solve a puzzle. Opening that puzzle in regular play should retain the hint and solved state without a second reward.
+2. Open the report form during a timer challenge. The timer should pause while the form is open and resume when it closes. Submit a real issue and check that it appears in the private review dashboard.
+3. In **Settings → Save progress**, connect Apple and confirm that your existing coins and progress remain. Restart the app and confirm they still load.
+4. On a second device or a fresh guest session, connect the same Apple account. Confirm the restore prompt explains that the current guest progress will be replaced, then verify the saved game loads.
+5. Exercise account deletion only with a disposable test account: confirm with Apple, verify a fresh guest session starts, and check the deleted account's data is gone.
+6. Test rewarded ads on the phone and verify that each completed ad awards coins once. Confirm a failed AI request leaves the attempt count unchanged.
+
 Run the 174 non-mutating security checks against Google's Rules testing API with:
 
 ```powershell
