@@ -42,12 +42,13 @@ npm run preview --prefix functions
 
 `functions/output/index.html` is a searchable preview gallery with six authored style examples. These are visual samples, not a generated or published weekly batch. The gallery and PNGs are ignored by Git. Tests use in-memory Firestore/Storage adapters, not production data, and cover weekly dates, validation, rendering, QA gates, exact batch size, duplicate prevention, concurrent execution, failed uploads and retries.
 
-Font licensing is supplied by `@fontsource/noto-sans` under SIL OFL 1.1. Its outlines are embedded in rendered images. The `gaxios@6.7.1` dependency's UUID helper is overridden to the compatible CommonJS `uuid@11.1.1` security fix; gaxios only calls `v4()`.
+Font licensing is supplied by `@fontsource/noto-sans` under SIL OFL 1.1. Its outlines are embedded in rendered images. UUID versions below 11.1.1 are overridden to the compatible CommonJS security fix `uuid@11.1.1`; the affected gaxios dependency only calls `v4()`. The override is compatible with npm 10 used by the Node 22 cloud builder.
 
 ## Deploy and run
 
 ```sh
 npx firebase-tools@15.31.0 login
+# First create functions/.env.puzzle-time-72ad9 containing: PUZZLE_MODEL=gemini-3.5-flash
 npx firebase-tools@15.31.0 deploy --only functions:weekly-puzzles --project puzzle-time-72ad9
 ```
 
